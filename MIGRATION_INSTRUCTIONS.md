@@ -1,14 +1,14 @@
-# Migration Instructions: .NET Framework 4.7.2 to .NET 10 (Headless Service-Only Architecture)
+# Migration Instructions: .NET Framework 4.7.2 to .NET 10 (Headless Controller-Based Clean Architecture)
 
 This document provides precise, step-by-step instructions for an AI agent to initialize and scaffold a modernized **.NET 10** backend project for the CryptoTrading platform. 
 
-The target design is a **Controller-less, headless domain-and-service-only structure**. All API endpoints shall be represented as high-performance **Minimal API Endpoints** mapped directly inside `Program.cs` or dedicated endpoint group mappers, completely bypassing traditional MVC Controllers (`ControllerBase`).
+The target design is a **Controller-based, headless clean architecture structure**. All API endpoints shall be represented as Web API Controllers inheriting from a common `BaseApiController`, completely bypassing Minimal APIs and adhering to strict Clean Architecture separations.
 
 ---
 
 ## 1. Directory Structure Blueprint
 
-The AI shall scaffold the new project directory named `CryptoTrading.Core` alongside the existing project with the following clean architecture:
+The AI shall scaffold the new project directory named `CryptoTrading.Core` alongside the existing project with the following clean architecture. Note that models, repositories, and services directories will be created as empty placeholder folders first, and then populated incrementally during individual vertical slice controller migrations:
 
 ```text
 CryptoTrading.Core/
@@ -18,40 +18,27 @@ CryptoTrading.Core/
 ├── appsettings.Development.json
 ├── Properties/
 │   └── launchSettings.json
-├── Models/
+├── Controllers/                         <-- Target directory for modernized Controllers
+│   └── BaseApiController.cs             <-- Common base controller with JWT parsing & response envelope
+├── Models/                              <-- Empty placeholder folders (populated during vertical slices)
 │   ├── DTOs/
 │   ├── Entities/
 │   ├── Enums/
 │   └── Requests/
 ├── Data/
-│   ├── IDbConnectionFactory.cs
-│   ├── SqlConnectionFactory.cs
-│   └── Repositories/
-│       ├── IAccountRepository.cs
-│       ├── ICryptocurrencyRepository.cs
-│       ├── IOrderRepository.cs
-│       ├── IPortfolioRepository.cs
-│       ├── ITradingRepository.cs
-│       ├── IUserRepository.cs
-│       └── IWalletRepository.cs
+│   ├── IDbConnectionFactory.cs          <-- Modern interface
+│   ├── SqlConnectionFactory.cs          <-- High-performance database factory
+│   └── Repositories/                    <-- Empty placeholder folder
 ├── Business/
-│   └── Services/
-│       ├── IAuthService.cs
-│       ├── ICryptoService.cs
-│       ├── IFinancialService.cs
-│       ├── IOrderService.cs
-│       ├── IPortfolioService.cs
-│       └── ITradingService.cs
-├── Infrastructure/
-│   ├── Caching/
-│   ├── DependencyInjection/
-│   │   └── DependencyInjectionExtensions.cs (For Service & Repository Registrations)
-│   ├── Logging/
-│   ├── MarketData/
-│   ├── PubSub/
-│   └── Security/
-└── Endpoints/
-    └── EndpointRouteBuilderExtensions.cs (For Minimal API Group Mappings)
+│   └── Services/                        <-- Empty placeholder folder
+└── Infrastructure/
+    ├── Caching/
+    ├── DependencyInjection/
+    │   └── DependencyInjectionExtensions.cs
+    ├── Logging/
+    ├── MarketData/
+    ├── PubSub/
+    └── Security/
 ```
 
 ---
@@ -71,7 +58,7 @@ dotnet new web -n CryptoTrading.Core -f net10.0
 Replace the generated `CryptoTrading.Core.csproj` with this streamlined, modern XML configuration. It pulls in modern .NET 10 package versions and enables global nullable context and modern C# implicit usings:
 
 ```xml
-<Project Project="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -99,6 +86,9 @@ Replace the generated `CryptoTrading.Core.csproj` with this streamlined, modern 
 
     <!-- Open API Documentation Support -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-*" />
+    
+    <!-- Modern Resilience and Transients (e.g. for external services) -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0-*" />
   </ItemGroup>
 
 </Project>
@@ -108,7 +98,7 @@ Replace the generated `CryptoTrading.Core.csproj` with this streamlined, modern 
 
 ## 4. Step 3: Create a High-Performance Data Access Layer (DAL) using Dapper
 
-To eliminate legacy database-to-object mapping boilerplate, the AI shall implement a **strongly-typed Data Access Layer (DAL) powered by Dapper**. All repositories shall utilize Dapper extension methods on the standard `IDbConnection` provided by `IDbConnectionFactory`.
+To eliminate legacy database-to-object mapping boilerplate, the AI shall implement a **strongly-typed Data Access Layer (DAL) powered by Dapper**. All repositories shall utilize Dapper extension methods on the standard `IDbConnection` provided by `IDbConnectionFactory`. Note: individual repositories are part of the vertical-slice controller migrations and are not scaffolded in the initial core structure step.
 
 ### 4.1 Core DAL Architecture & Standards
 - **Strict Stored Procedure Integration:** Direct queries via dynamic SQL are forbidden. All operations MUST execute one of the 28 SQL Server Stored Procedures using `CommandType.StoredProcedure`.
@@ -218,7 +208,7 @@ public async Task<AccountDto?> GetAccountByUserIdAsync(int userId)
 
 ## 5. Step 4: Configure Kestrel and Startup Config (`appsettings.json`)
 
-Scaffold a clean configuration configuration mapping the legacy settings into a standardized modern schema:
+Scaffold a clean configuration mapping the legacy settings into a standardized modern schema:
 
 ```json
 {
@@ -254,13 +244,13 @@ Scaffold a clean configuration configuration mapping the legacy settings into a 
 
 ---
 
-## 6. Step 5: Implement `Program.cs` (DI, Services & Minimal Routing)
+## 6. Step 5: Implement `Program.cs` (DI, Services & Controller Routing)
 
-The AI shall construct a consolidated `Program.cs` configuring the core hosting context, service pipeline, security filters, and routing maps. 
+The AI shall construct a consolidated `Program.cs` configuring the core hosting context, service pipeline, security filters, and MVC Controller routing maps. 
 
-All database, repository, security, and domain service dependencies shall be cleanly registered using custom extension methods (see Step 5.1), keeping the bootstrap code simple, clean, and elegant.
+All database, security, and domain service dependencies shall be cleanly registered using custom extension methods, keeping the bootstrap code simple, clean, and elegant.
 
-*Crucial Requirement:* **No traditional MVC controllers shall be registered (`AddControllers` and `MapControllers` are strictly forbidden).**
+*Crucial Requirement:* **Web API Controllers must be registered with JSON options enforcing camelCase serialization to support the React SPA frontend.**
 
 ```csharp
 using Serilog;
@@ -276,17 +266,25 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// 2. Register Open API / Swagger Support
+// 2. Register Web API Controllers with camelCase serialization
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
+
+// 3. Register Open API / Swagger Support
 builder.Services.AddOpenApi();
 
-// 3. Register Core Application Layers using decoupled Extension Methods
+// 4. Register Core Application Layers using decoupled Extension Methods
 builder.Services
     .AddCoreDatabase(builder.Configuration)
     .AddCoreRepositories()
     .AddCoreServices()
     .AddCoreAuthentication(builder.Configuration);
 
-// 4. Configure Modern CORS Matching the React Web App Origin
+// 5. Configure Modern CORS Matching the React Web App Origin
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -300,7 +298,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 5. Global Error-Handling Middleware (Envelope-compliant API Errors)
+// 6. Global Error-Handling Middleware (Envelope-compliant API Errors)
 app.Use(async (context, next) =>
 {
     try
@@ -325,26 +323,20 @@ app.Use(async (context, next) =>
     }
 });
 
-// 6. Pipeline Routing Setup
+// 7. Pipeline Routing Setup
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 7. Swagger / OpenAPI Endpoint Routing
+// 8. Swagger / OpenAPI Endpoint Routing
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// 8. Minimal API Endpoint Route Group Mappings
-var apiGroup = app.MapGroup("/api");
-
-// Map sub-groups cleanly utilizing direct extensions (no Controllers)
-apiGroup.MapAuthEndpoints();
-apiGroup.MapCryptoEndpoints();
-apiGroup.MapPortfolioEndpoints();
-apiGroup.MapTradingEndpoints();
+// 9. Map Web API Controllers
+app.MapControllers();
 
 app.Run();
 ```
@@ -353,15 +345,13 @@ app.Run();
 
 ## 6.1 Step 5.1: Create Dependency Injection Class (`DependencyInjectionExtensions.cs`)
 
-The AI shall scaffold a dedicated Dependency Injection file containing extensions on `IServiceCollection` to manage registrations modularly:
+The AI shall scaffold a dedicated Dependency Injection file containing extensions on `IServiceCollection` to manage registrations modularly. Methods for repositories and services are registered as empty shells in this core setup phase and are populated incrementally as vertical slices are migrated:
 
 ```csharp
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using CryptoTrading.Data;
-using CryptoTrading.Data.Repositories;
-using CryptoTrading.Business.Services;
 
 namespace CryptoTrading.Core.Infrastructure.DependencyInjection;
 
@@ -378,23 +368,14 @@ public static class DependencyInjectionExtensions
 
     public static IServiceCollection AddCoreRepositories(this IServiceCollection services)
     {
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IAccountRepository, AccountRepository>();
-        services.AddScoped<ICryptocurrencyRepository, CryptocurrencyRepository>();
-        services.AddScoped<IWalletRepository, WalletRepository>();
-        services.AddScoped<IPortfolioRepository, PortfolioRepository>();
-        services.AddScoped<IOrderRepository, OrderRepository>();
-        services.AddScoped<ITradingRepository, TradingRepository>();
+        // Add repository registrations here as vertical slices are migrated.
         return services;
     }
 
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddMemoryCache();
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<ICryptoService, CryptoService>();
-        services.AddScoped<ITradingService, TradingService>();
-        services.AddScoped<IPortfolioService, PortfolioService>();
+        // Add service registrations here as vertical slices are migrated.
         return services;
     }
 
@@ -431,210 +412,120 @@ public static class DependencyInjectionExtensions
 
 ---
 
-## 7. Step 6: Endpoint Mapping Design Pattern
+## 7. Step 6: Create Base API Controller (`BaseApiController.cs`)
 
-To keep `Program.cs` completely clean and free of route clutter, the AI shall implement the Minimal API route groupings in dedicated extension files using the pattern below:
+To automate claims extraction and enforce the uniform response envelope structure across all endpoints, the AI shall scaffold a common `BaseApiController` class in the `Controllers/` directory:
 
 ```csharp
-namespace CryptoTrading.Core.Endpoints;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 
-public static class EndpointRouteBuilderExtensions
+namespace CryptoTrading.Core.Controllers;
+
+[ApiController]
+[Produces("application/json")]
+public abstract class BaseApiController : ControllerBase
 {
-    public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
+    /// <summary>
+    /// Safely extracts the authenticated User ID from the JWT NameIdentifier claim.
+    /// </summary>
+    protected int CurrentUserId
     {
-        var auth = group.MapGroup("/auth");
-
-        auth.MapPost("/register", async (RegisterRequest request, IAuthService authService) =>
+        get
         {
-            var result = await authService.RegisterAsync(request);
-            return Results.Created($"/api/profile/{result.User.UserId}", new { success = true, data = result });
-        }).AllowAnonymous();
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(idClaim) || !int.TryParse(idClaim, out var userId))
+            {
+                throw new UnauthorizedAccessException("User identification claim is missing or invalid.");
+            }
+            return userId;
+        }
+    }
 
-        auth.MapPost("/login", async (LoginRequest request, IAuthService authService) =>
+    /// <summary>
+    /// Formats success payloads matching the standard legacy Uniform Response Envelope.
+    /// </summary>
+    protected IActionResult EnvelopeOk<T>(T data, string message = "Operation completed successfully.")
+    {
+        return Ok(new
         {
-            var result = await authService.LoginAsync(request);
-            return Results.Ok(new { success = true, data = result });
-        }).AllowAnonymous();
+            success = true,
+            message,
+            data
+        });
+    }
 
-        return group;
+    /// <summary>
+    /// Formats creation payloads matching the standard legacy Uniform Response Envelope (HTTP 201).
+    /// </summary>
+    protected IActionResult EnvelopeCreated<T>(string uri, T data, string message = "Resource created successfully.")
+    {
+        return Created(uri, new
+        {
+            success = true,
+            message,
+            data
+        });
     }
 }
 ```
 
 ---
 
-## 8. Step 7: Resilient HttpClient Factory (External CoinGecko Integration)
+## 8. Architectural Transformation Guidelines for Vertical Slices
 
-The legacy `CoinGeckoMarketService` is highly vulnerable to connection exhaustion and HTTP 429 rate-limiting lockouts. To modernize this external integration, the AI shall implement **Typed HttpClients** backed by **`IHttpClientFactory`** and configured with a native **Resilience Pipeline (Polly)**:
+When migrating individual vertical slices (including models, repositories, business services, and controllers), the AI shall follow these structural design patterns:
 
-1. **Add Resilience Packages:** The `.csproj` MUST include the standard resilience package:
-   ```xml
-   <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0-*" />
-   ```
-2. **Configure HttpClient in DI Extensions:** Inside `DependencyInjectionExtensions.cs`, register the market service as a resilient typed HTTP client:
-   ```csharp
-   services.AddHttpClient<ICryptoMarketService, CoinGeckoMarketService>(client =>
-   {
-       client.BaseAddress = new Uri("https://api.coingecko.com/api/v3/");
-       client.DefaultRequestHeaders.Add("Accept", "application/json");
-       client.Timeout = TimeSpan.FromSeconds(15);
-   })
-   .AddStandardResilienceHandler(options =>
-   {
-       // 1. Configure standard retry mechanics for transient status codes (5xx, 429)
-       options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
-       options.Retry.MaxRetryAttempts = 3;
-       options.Retry.Delay = TimeSpan.FromSeconds(2);
+### 8.1 Typed HttpClients & Polly Resilience (e.g., CoinGecko Integration)
+External HTTP API clients (such as `CoinGeckoMarketService`) must be typed and configured with Polly resilience pipelines (retry mechanics, circuit breaker) in `DependencyInjectionExtensions.cs` using `Microsoft.Extensions.Http.Resilience`.
 
-       // 2. Configure Circuit Breaker to prevent slamming downstream if API drops
-       options.CircuitBreaker.FailureRatio = 0.5; // Trip if 50% of requests fail
-       options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
-       options.CircuitBreaker.MinimumThroughput = 8;
-       options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(15);
-   });
-   ```
-3. **Scaffold Resilient Service:** The typed client consumes the resilient `HttpClient` implicitly injected into its constructor:
-   ```csharp
-   using Microsoft.Extensions.Caching.Memory;
-   using System.Net.Http.Json;
-
-   namespace CryptoTrading.Core.Infrastructure.MarketData;
-
-   public class CoinGeckoMarketService : ICryptoMarketService
-   {
-       private readonly HttpClient _httpClient;
-       private readonly IMemoryCache _cache;
-       private const string CacheKey = "MarketPrices";
-
-       public CoinGeckoMarketService(HttpClient httpClient, IMemoryCache cache)
-       {
-           _httpClient = httpClient;
-           _cache = cache;
-       }
-
-       public async Task<List<CryptoPriceDto>> GetMarketPricesAsync()
-       {
-           // Leverage in-memory sliding cache to respect rate-limits
-           if (_cache.TryGetValue(CacheKey, out List<CryptoPriceDto>? cachedPrices))
-           {
-               return cachedPrices!;
-           }
-
-           try
-           {
-               // Built-in resilience handler handles retries, timeouts, and circuit breakers automatically
-               var response = await _httpClient.GetFromJsonAsync<List<CryptoPriceDto>>("coins/markets?vs_currency=usd");
-               if (response != null)
-               {
-                   _cache.Set(CacheKey, response, TimeSpan.FromSeconds(45));
-                   return response;
-               }
-           }
-           catch (Exception ex)
-           {
-               // Fall back gracefully to local database price tables if external API is locked or offline
-               return await FallbackToLocalDatabasePricesAsync();
-           }
-
-           throw new InvalidOperationException("Market data currently unavailable.");
-       }
-
-       private Task<List<CryptoPriceDto>> FallbackToLocalDatabasePricesAsync()
-       {
-           // Call repositories/database to extract last cached values
-           return Task.FromResult(new List<CryptoPriceDto>());
-       }
-   }
-   ```
+### 8.2 Hosted Background Services (e.g., GCP Pub/Sub Integration)
+Long-running asynchronous consumers (such as `PubSubBackgroundSubscriber`) must inherit from `BackgroundService` and register as lifecycle-managed hosted services:
+```csharp
+services.AddHostedService<PubSubBackgroundSubscriber>();
+```
 
 ---
 
-## 9. Step 8: Event-Driven Architecture with Background Hosted Services (`BackgroundService`)
+## 9. Step 7: AI Verification Checklist, Build, and Startup Validation
 
-The legacy Google Cloud Pub/Sub integration was unmanaged and manually bound to direct routing hubs. In .NET 10, all long-running asynchronous message processors and event streaming consumers MUST be managed as **Hosted Background Services** inheriting from **`BackgroundService`**:
+Before declaring the core project structure setup complete, the AI shall run and verify:
 
-1. **Scaffold Background Hosted Listener:** Create a background worker that launches with Kestrel startup, pulls messages asynchronously, and handles graceful cancellation tokens cleanly:
+1. **Add Swagger UI Middleware Package:**
+   Ensure the following package is installed for visual Swagger UI page rendering:
+   ```bash
+   dotnet add package Swashbuckle.AspNetCore.SwaggerUi
+   ```
+2. **Configure Swagger UI Route in `Program.cs`:**
+   Verify `Program.cs` enables the Swagger UI router pointing to native OpenAPI specs in development:
    ```csharp
-   using Microsoft.Extensions.Hosting;
-   using CryptoTrading.Infrastructure.PubSub;
-
-   namespace CryptoTrading.Core.Infrastructure.BackgroundWorkers;
-
-   public class PubSubBackgroundSubscriber : BackgroundService
+   if (app.Environment.IsDevelopment())
    {
-       private readonly IPubSubSubscriber _subscriber;
-       private readonly ILogger<PubSubBackgroundSubscriber> _logger;
-       private readonly IServiceProvider _serviceProvider;
-
-       public PubSubBackgroundSubscriber(
-           IPubSubSubscriber subscriber, 
-           ILogger<PubSubBackgroundSubscriber> logger,
-           IServiceProvider serviceProvider)
+       app.MapOpenApi();
+       app.UseSwaggerUI(options =>
        {
-           _subscriber = subscriber;
-           _logger = logger;
-           _serviceProvider = serviceProvider;
-       }
-
-       protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-       {
-           _logger.LogInformation("Google Cloud Pub/Sub Background Subscriber is starting...");
-
-           // Initialize the subscription thread
-           _subscriber.Subscribe<OrderExecutionMessage>(
-               "order-execution-sub", 
-               async (orderingKey, message) =>
-               {
-                   _logger.LogDebug("Processing execution for Order: {OrderId}, Key: {Key}", message.OrderId, orderingKey);
-                   
-                   // Resolve scoped domain services safely inside background thread scope
-                   using var scope = _serviceProvider.CreateScope();
-                   var tradingService = scope.ServiceProvider.GetRequiredService<ITradingService>();
-
-                   await tradingService.ProcessAsynchronousExecutionAsync(message);
-               }, 
-               stoppingToken
-           );
-
-           // Keep background thread alive while cancellation is not requested
-           while (!stoppingToken.IsCancellationRequested)
-           {
-               await Task.Delay(1000, stoppingToken);
-           }
-
-           _logger.LogInformation("Google Cloud Pub/Sub Background Subscriber is stopping gracefully...");
-           _subscriber.Stop();
-       }
+           options.SwaggerEndpoint("/openapi/v1.json", "CryptoTrading Core API v1");
+           options.RoutePrefix = "swagger";
+       });
    }
    ```
-2. **Register Hosted Service in DI Extension:**
-   Add the background service to the collection inside `DependencyInjectionExtensions.cs` so its lifecycle is managed natively:
-   ```csharp
-   public static IServiceCollection AddCoreServices(this IServiceCollection services)
-   {
-       services.AddMemoryCache();
-       services.AddScoped<IAuthService, AuthService>();
-       services.AddScoped<ICryptoService, CryptoService>();
-       services.AddScoped<ITradingService, TradingService>();
-       services.AddScoped<IPortfolioService, PortfolioService>();
-
-       // Register the Pub/Sub Subscriber Worker as a Hosted Lifecycle Service
-       services.AddHostedService<PubSubBackgroundSubscriber>();
-
-       return services;
-   }
+3. **Configure Startup Launch Page:**
+   Confirm `Properties/launchSettings.json` sets `"launchUrl": "swagger"` on profiles so the browser opens directly to Swagger on startup:
+   ```json
+   "launchUrl": "swagger"
    ```
-
----
-
-## 10. Step 9: AI Verification Checklist & Build Validation
-
-Before declaring the migration of the application core complete, the AI shall run and verify:
-
-1. **Compilable Codebase:** Execute `dotnet build` from the `CryptoTrading.Core/` directory. Ensure there are 0 compilation errors or blocking nullable warnings.
-2. **Missing Controller Verification:** Inspect the built assembly (or files) to ensure **zero** references to Microsoft.AspNetCore.Mvc.ControllerBase are present, and no `/Controllers` directory exists.
-3. **Resilient HTTP Client Verifications:** Verify that the Typed HttpClient handles transient errors gracefully, does not lock up under rate-limiting scenarios, and falls back to SQL cache properly.
-4. **Graceful Worker Shutdown Tests:** Check that stopping the application sends correct cancellation signals to `PubSubBackgroundSubscriber` and closes GCP connections instantly with zero leakage.
-5. **Database Connectivity Validation:** Verify the database connection string and query behavior.
-6. **JWT Expiration & Issuance Audits:** Execute automated unit tests against the `IAuthService` logic to confirm robust token generation and claim mapping.
+4. **Compilable Core:** Execute `dotnet build` from the `CryptoTrading.Core/` directory. Ensure there are 0 compilation errors.
+5. **Startup Health Check:**
+   - Execute the project in the background (`dotnet run` or equivalent task).
+   - Perform an HTTP head request to verify that the Swagger UI is fully responsive and serving pages correctly on port `5152` or `7164`:
+     ```bash
+     curl -s -I http://localhost:5152/swagger/index.html
+     ```
+   - Confirm the endpoint returns a successful status code:
+     ```http
+     HTTP/1.1 200 OK
+     ```
+6. **Controller Routing Verification:** Confirm `AddControllers()` and `MapControllers()` are correctly specified in `Program.cs` and that no Minimal API endpoint route groupings exist.
+7. **Common Base Controller:** Confirm that `BaseApiController` exists in the `Controllers/` directory with correct namespace, authorization claims extraction helper, and uniform JSON envelope methods.
+8. **Clean Project Structure:** Check that placeholder folders for `Models`, `Data/Repositories`, and `Business/Services` are scaffolded but left unpopulated for future vertical slices.
 

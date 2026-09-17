@@ -1,36 +1,86 @@
-# Controller Migration Instructions: .NET Framework 4.7.2 to .NET 10 (Clean Architecture & Contract Fidelity)
+# Controller Migration Instructions: .NET Framework 4.7.2 to .NET 10 (Surgical Vertical Slice & Clean Architecture Transformation)
 
-This document provides precise instructions for an AI agent to migrate the legacy ASP.NET Web API 2 controllers to modernized **.NET 10 Web API Controllers**. 
+This document provides precise instructions for an AI agent to migrate a **single, specific target controller** and its entire downstream dependency graph from legacy ASP.NET Web API 2 to a modernized **.NET 10 Web API Controller** project.
 
-To satisfy the modern design standards, the migrated controllers MUST adhere strictly to **Clean Architecture** and maintain **100% backward API contract compatibility** (matching exact routes, payloads, nested casing, HTTP status codes, and JSON response envelopes).
-
----
-
-## 1. Clean Architecture Design Rules
-
-The presentation layer (Controllers) must be completely decoupled from the data layer. The AI shall enforce the following architectural rules:
-
-1. **Service-Only Dependencies:** Controllers MUST depend exclusively on Business/Domain Services (e.g. `IAuthService`, `ITradingService`, `IPortfolioService`). Direct injection or instantiation of ADO.NET repositories (`IUserRepository`, etc.) inside controllers is **strictly forbidden**.
-2. **Decoupled Business Validation:** Controllers are thin traffic coordinators. All trading limits, wallet check formulas, or financial logic must reside within the business service layers—never in the Controller actions.
-3. **Implicit User Context Parsing:** Do not parse or decode JWT tokens inside actions. The security claims principal must be processed implicitly by the native ASP.NET Core Bearer Middleware, with the controller accessing user properties through secure base helpers.
-4. **Strong Typing:** Use concrete request classes (e.g., `BuyTradeRequest`) and strongly-typed payload bindings (`[FromBody]`). Avoid untyped model bindings.
+Rather than migrating the entire system at once, the migration MUST follow a **Vertical Slice** pattern. Only the target controller specified in the input, along with its dependent files, shall be migrated and modernized.
 
 ---
 
-## 2. API Contract & Routing Mappings
+## 1. Clean Architecture Transformation Mandate
 
-To maintain complete backward compatibility with the existing React SPA frontend, the new routing scheme must match the legacy controllers exactly:
+The modernized target controller MUST adhere strictly to **Clean Architecture**. If the legacy codebase is not in Clean Architecture (e.g., if the controller accesses repositories or the database directly), the AI **MUST** refactor and reorganize the code during migration:
 
-| Endpoint Path | Method | Auth Required | Description | Legacy Controller | Target Controller |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `/api/auth/register` | `POST` | No | User registration | `AuthController` | `AuthController` |
-| `/api/auth/login` | `POST` | No | User authentication | `AuthController` | `AuthController` |
-| `/api/cryptocurrencies` | `GET` | Yes | List market cryptos | `CryptocurrenciesController` | `CryptocurrenciesController` |
-| `/api/portfolio` | `GET` | Yes | Get real-time portfolio | `PortfolioController` | `PortfolioController` |
-| `/api/orders/buy` | `POST` | Yes | Place a BUY order | `OrdersController` | `OrdersController` |
-| `/api/orders/sell` | `POST` | Yes | Place a SELL order | `OrdersController` | `OrdersController` |
-| `/api/trades` | `GET` | Yes | Retrieve trade history | `TradesController` | `TradesController` |
-| `/api/transactions` | `GET` | Yes | Retrieve financial ledger | `TransactionsController` | `TransactionsController` |
+1. **Service-Only Dependencies:** Controllers MUST depend exclusively on Business/Domain Services (e.g., `IAuthService`, `ITradingService`, `IFinancialService`). **Direct injection, instantiation, or reference of data repositories (e.g., `IUserRepository`, `IDepositRepository`) or database factories inside controllers is strictly forbidden.**
+2. **Decoupled Business Validation:** Controllers are thin traffic coordinators. All trading limits, wallet check formulas, financial validations, or workflow logic must reside within the business service layers—never in the controller actions.
+3. **Database Separation:** All database access must be completely isolated behind repositories and services. The controller must have zero knowledge of database schemas, SQL queries, or repository boundaries.
+4. **Implicit User Context Parsing:** Do not parse or decode JWT tokens manually inside actions. The security claims principal must be processed implicitly by the native ASP.NET Core Bearer Middleware, with the controller accessing user properties through secure base helpers.
+5. **Strong Typing:** Use concrete request classes (e.g., `BuyTradeRequest`) and strongly-typed payload bindings (`[FromBody]`, `[FromQuery]`). Avoid untyped model bindings.
+
+---
+
+## 2. Surgical Vertical Slice Migration Protocol
+
+When given a target legacy controller to migrate, the AI shall execute the following five-step protocol:
+
+```text
++-----------------------------------------------------------------+
+|                  Step 1: Dependency Analysis                    |
+| Trace target controller -> Services -> Repositories -> Models   |
++-----------------------------------------------------------------+
+                                |
+                                v
++-----------------------------------------------------------------+
+|               Step 2: Data & Model Modernization                |
+| Migrate/scaffold dependent DTOs, Entities & Dapper Repositories|
++-----------------------------------------------------------------+
+                                |
+                                v
++-----------------------------------------------------------------+
+|            Step 3: Business Service Modernization               |
+| Create/extend Services; extract any direct DB logic to Service  |
++-----------------------------------------------------------------+
+                                |
+                                v
++-----------------------------------------------------------------+
+|            Step 4: Scaffold Modernized Controller               |
+| Inherit BaseApiController, map exact legacy routes & contract   |
++-----------------------------------------------------------------+
+                                |
+                                v
++-----------------------------------------------------------------+
+|                Step 5: Dependency Injection & Build             |
+| Register only the migrated slice and run compilation checks      |
++-----------------------------------------------------------------+
+```
+
+### Step 1: Dependency Analysis
+1. Read the legacy controller file to identify all actions, routes, HTTP methods, and parameters.
+2. Track all downstream dependencies:
+   - Identify which legacy services and interfaces are consumed.
+   - Identify which repositories and database-access structures are called (either by the services or directly by the controller).
+   - Identify all request models, response models, DTOs, and entities involved.
+3. This set of identified files forms the **Vertical Slice** that must be migrated together.
+
+### Step 2: Data & Model Modernization
+1. Create modernized, strongly-typed C# classes for all dependent models, DTOs, and request objects. Place them in the corresponding `Models/` directories (`DTOs/`, `Entities/`, `Requests/`).
+2. Implement or update the dependent repositories to use .NET 10 standards with **Dapper** as described in `MIGRATION_INSTRUCTIONS.md`. Ensure all repository methods are fully asynchronous and wrap connections in scoped `using` blocks.
+
+### Step 3: Business Service Modernization & Refactoring
+1. **Direct DB Refactoring:** If the legacy controller has direct database queries or repository calls, you must:
+   - Introduce a new Business Service interface (e.g., `IFinancialService`) and its implementation (`FinancialService`).
+   - Move the database/repository calls from the controller action into the service implementation.
+   - Put all business validation and rules inside this service.
+2. If the legacy controller already depends on a service, modernize that service to use fully async patterns, proper logging, and transient dependency injection.
+
+### Step 4: Scaffold Modernized Controller
+1. The target controller must inherit from the uniform `BaseApiController` (defined in Section 3) to enforce standard claims extraction and response envelopes.
+2. **100% Contract Fidelity:** The target controller endpoints MUST match the legacy controller routes, HTTP verbs, query parameters, and response structures exactly.
+3. **Serialization Casing:** Ensure JSON outputs match the camelCase requirement of the React SPA frontend.
+
+### Step 5: Dependency Injection & Verification
+1. Update `DependencyInjectionExtensions.cs` in the modern project to register only the newly migrated vertical slice dependencies (Repositories, Services).
+2. Register the modernized Controller in the application's routing framework.
+3. Compile and verify that the vertical slice compiles cleanly.
 
 ---
 
@@ -94,59 +144,80 @@ public abstract class BaseApiController : ControllerBase
 
 ---
 
-## 4. Step 2: Migrating Authentication Endpoints (`AuthController`)
+## 4. Architectural Transformation Example: Refactoring Legacy Direct-Access to Clean Architecture
 
-The Auth endpoint must handle anonymous registration and login, returning JSON properties identical to the legacy design:
+Consider a legacy `DepositsController` that violates Clean Architecture by directly calling repositories and containing processing logic in its actions:
 
+### Legacy Violation (Direct Repository Access & Processing in Controller)
 ```csharp
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using CryptoTrading.Business.Services;
-using CryptoTrading.Models.Requests;
-
-namespace CryptoTrading.Core.Controllers;
-
-[Route("api/auth")]
-[AllowAnonymous]
-public class AuthController : BaseApiController
+// LEGACY VIOLATION: Directly depends on repositories and does processing in controller
+public class DepositsController : BaseApiController
 {
-    private readonly IAuthService _authService;
+    private readonly IDepositRepository _depositRepository;
+    private readonly IAccountRepository _accountRepository;
 
-    public AuthController(IAuthService authService)
+    public DepositsController(IDepositRepository depositRepository, IAccountRepository accountRepository)
     {
-        _authService = authService;
+        _depositRepository = depositRepository;
+        _accountRepository = accountRepository;
     }
 
-    [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
+    [HttpPost]
+    [Route("")]
+    public async Task<IHttpActionResult> Deposit([FromBody] DepositRequest request)
     {
-        if (request == null)
-            return BadRequest(new { success = false, message = "Request payload cannot be empty.", errorCode = "INVALID_ARGUMENT" });
+        // Business logic inside controller action (Violation!)
+        if (request.Amount <= 0)
+            return BadRequest("Amount must be greater than zero.");
 
-        var result = await _authService.RegisterAsync(request);
-        
-        // Match exact legacy 201 response contract (Location header pointing to profile)
-        return EnvelopeCreated($"/api/profile/{result.User.UserId}", result, "User registered successfully.");
-    }
+        var account = await _accountRepository.GetAccountByUserIdAsync(CurrentUserId);
+        if (account == null)
+            return NotFound();
 
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        if (request == null)
-            return BadRequest(new { success = false, message = "Credentials cannot be empty.", errorCode = "INVALID_ARGUMENT" });
-
-        var result = await _authService.LoginAsync(request);
-        return EnvelopeOk(result, "User logged in successfully.");
+        var result = await _depositRepository.ProcessDepositAsync(CurrentUserId, request.Amount, request.Currency);
+        return Ok(result);
     }
 }
 ```
 
----
+### Modernized Clean Architecture Solution
+The modernized code completely decouples the controller, introducing `IFinancialService` to orchestrate business validation and data repository calls:
 
-## 5. Step 3: Migrating Authenticated Endpoints (`OrdersController`)
+#### 1. Modernized Business Service Layer
+```csharp
+namespace CryptoTrading.Business.Services;
 
-Secure endpoints require bearer validation and MUST retrieve the user ID implicitly from JWT claims, mapping the payload to business logic:
+public interface IFinancialService
+{
+    Task<DepositDto> ProcessDepositAsync(int userId, DepositRequest request);
+}
 
+public class FinancialService : IFinancialService
+{
+    private readonly IDepositRepository _depositRepository;
+    private readonly IAccountRepository _accountRepository;
+
+    public FinancialService(IDepositRepository depositRepository, IAccountRepository accountRepository)
+    {
+        _depositRepository = depositRepository;
+        _accountRepository = accountRepository;
+    }
+
+    public async Task<DepositDto> ProcessDepositAsync(int userId, DepositRequest request)
+    {
+        if (request.Amount <= 0)
+            throw new ArgumentException("Amount must be greater than zero.");
+
+        var account = await _accountRepository.GetAccountByUserIdAsync(userId);
+        if (account == null)
+            throw new KeyNotFoundException("User account not found.");
+
+        return await _depositRepository.ProcessDepositAsync(userId, request.Amount, request.Currency);
+    }
+}
+```
+
+#### 2. Modernized Clean Controller
 ```csharp
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -155,51 +226,38 @@ using CryptoTrading.Models.Requests;
 
 namespace CryptoTrading.Core.Controllers;
 
-[Route("api/orders")]
+[Route("api/deposits")]
 [Authorize]
-public class OrdersController : BaseApiController
+public class DepositsController : BaseApiController
 {
-    private readonly ITradingService _tradingService;
+    private readonly IFinancialService _financialService;
 
-    public OrdersController(ITradingService tradingService)
+    public DepositsController(IFinancialService financialService)
     {
-        _tradingService = tradingService;
+        _financialService = financialService;
     }
 
-    [HttpPost("buy")]
-    public async Task<IActionResult> Buy([FromBody] BuyTradeRequest request)
+    [HttpPost]
+    public async Task<IActionResult> Deposit([FromBody] DepositRequest request)
     {
         if (request == null)
-            return BadRequest(new { success = false, message = "Trade arguments cannot be empty.", errorCode = "INVALID_ARGUMENT" });
-
-        // Retrieve the authenticated User ID implicitly from Claims
-        int userId = CurrentUserId;
-
-        // Delegate entire validation and database logic to the trading service
-        var tradeResult = await _tradingService.BuyAsync(userId, request);
-
-        return EnvelopeOk(tradeResult, "Buy trade executed successfully.");
-    }
-
-    [HttpPost("sell")]
-    public async Task<IActionResult> Sell([FromBody] SellTradeRequest request)
-    {
-        if (request == null)
-            return BadRequest(new { success = false, message = "Trade arguments cannot be empty.", errorCode = "INVALID_ARGUMENT" });
+            return BadRequest(new { success = false, message = "Payload cannot be empty.", errorCode = "INVALID_ARGUMENT" });
 
         int userId = CurrentUserId;
-        var tradeResult = await _tradingService.SellAsync(userId, request);
+        
+        // Delegate all orchestration, validation, and database operations to the service layer
+        var depositResult = await _financialService.ProcessDepositAsync(userId, request);
 
-        return EnvelopeOk(tradeResult, "Sell trade executed successfully.");
+        return EnvelopeOk(depositResult, "Deposit processed successfully.");
     }
 }
 ```
 
 ---
 
-## 6. Step 4: Configure JSON Serialization in `Program.cs`
+## 5. JSON Serialization Configuration in `Program.cs`
 
-To prevent payload mapping breaks in the React client, JSON output MUST preserve casing structures identical to legacy setups. The AI shall register modern controllers in `Program.cs` configured with camelCase properties:
+To prevent payload mapping breaks in the React client, JSON output MUST preserve casing structures identical to legacy setups. Register modern controllers in `Program.cs` configured with camelCase properties:
 
 ```csharp
 // In Program.cs (under builder.Services):
@@ -212,16 +270,24 @@ builder.Services.AddControllers()
     });
 
 // Under routing configurations in Program.cs:
-app.MapControllers(); // Replaces Minimal API mappings
+app.MapControllers();
 ```
 
 ---
 
-## 7. AI Controller Verification Checklist
+## 6. AI Vertical Slice Verification Checklist
 
-Before certifying the Controller modernization, the AI shall confirm:
+Before certifying the migration of a single target controller slice, the AI shall confirm:
 
-1. **Compilation Check:** Run `dotnet build` from the CLI. Confirm 0 compiler issues.
-2. **Contract Fidelity Verification:** Ensure there are no modifications to payload model shapes, response keys, or nested parameters.
-3. **No Repository Violations:** Search Controller files to ensure NO references to database context, connection builders, or `IDbConnectionFactory` are directly imported or injected.
-4. **Exception Integrity:** Verify that any custom exception thrown by the services (e.g. `ValidationException`) maps to uniform failure envelopes `{ "success": false, "message": "...", "errorCode": "..." }` through global middleware filters.
+1. **Compilation Check:** Run `dotnet build` from the modern project root. Confirm exactly 0 compilation errors or blocking warnings.
+2. **Contract Fidelity Verification:** Run comparative reviews to ensure there are no modifications to payload model shapes, response keys, or nested parameters.
+3. **No Direct Repository Violations:** Check the migrated target controller code. Verify that NO data repository types (`IRepository`, database contexts, or connection strings) are imported or injected.
+4. **Exception Integrity:** Verify that any business exceptions thrown by services (e.g., `ArgumentException`, `KeyNotFoundException`) are handled by global middleware/filters and mapped to uniform failure envelopes:
+   ```json
+   {
+     "success": false,
+     "message": "Error message description...",
+     "errorCode": "ERROR_CODE"
+   }
+   ```
+5. **No Collateral Modifications:** Confirm that only the specified controller and its explicit downstream vertical dependency slice were modified or created. No unrelated code files should be staged or changed.
