@@ -463,11 +463,178 @@ public static class EndpointRouteBuilderExtensions
 
 ---
 
-## 8. AI Verification Checklist & Build Validation
+## 8. Step 7: Resilient HttpClient Factory (External CoinGecko Integration)
+
+The legacy `CoinGeckoMarketService` is highly vulnerable to connection exhaustion and HTTP 429 rate-limiting lockouts. To modernize this external integration, the AI shall implement **Typed HttpClients** backed by **`IHttpClientFactory`** and configured with a native **Resilience Pipeline (Polly)**:
+
+1. **Add Resilience Packages:** The `.csproj` MUST include the standard resilience package:
+   ```xml
+   <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0-*" />
+   ```
+2. **Configure HttpClient in DI Extensions:** Inside `DependencyInjectionExtensions.cs`, register the market service as a resilient typed HTTP client:
+   ```csharp
+   services.AddHttpClient<ICryptoMarketService, CoinGeckoMarketService>(client =>
+   {
+       client.BaseAddress = new Uri("https://api.coingecko.com/api/v3/");
+       client.DefaultRequestHeaders.Add("Accept", "application/json");
+       client.Timeout = TimeSpan.FromSeconds(15);
+   })
+   .AddStandardResilienceHandler(options =>
+   {
+       // 1. Configure standard retry mechanics for transient status codes (5xx, 429)
+       options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+       options.Retry.MaxRetryAttempts = 3;
+       options.Retry.Delay = TimeSpan.FromSeconds(2);
+
+       // 2. Configure Circuit Breaker to prevent slamming downstream if API drops
+       options.CircuitBreaker.FailureRatio = 0.5; // Trip if 50% of requests fail
+       options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+       options.CircuitBreaker.MinimumThroughput = 8;
+       options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(15);
+   });
+   ```
+3. **Scaffold Resilient Service:** The typed client consumes the resilient `HttpClient` implicitly injected into its constructor:
+   ```csharp
+   using Microsoft.Extensions.Caching.Memory;
+   using System.Net.Http.Json;
+
+   namespace CryptoTrading.Core.Infrastructure.MarketData;
+
+   public class CoinGeckoMarketService : ICryptoMarketService
+   {
+       private readonly HttpClient _httpClient;
+       private readonly IMemoryCache _cache;
+       private const string CacheKey = "MarketPrices";
+
+       public CoinGeckoMarketService(HttpClient httpClient, IMemoryCache cache)
+       {
+           _httpClient = httpClient;
+           _cache = cache;
+       }
+
+       public async Task<List<CryptoPriceDto>> GetMarketPricesAsync()
+       {
+           // Leverage in-memory sliding cache to respect rate-limits
+           if (_cache.TryGetValue(CacheKey, out List<CryptoPriceDto>? cachedPrices))
+           {
+               return cachedPrices!;
+           }
+
+           try
+           {
+               // Built-in resilience handler handles retries, timeouts, and circuit breakers automatically
+               var response = await _httpClient.GetFromJsonAsync<List<CryptoPriceDto>>("coins/markets?vs_currency=usd");
+               if (response != null)
+               {
+                   _cache.Set(CacheKey, response, TimeSpan.FromSeconds(45));
+                   return response;
+               }
+           }
+           catch (Exception ex)
+           {
+               // Fall back gracefully to local database price tables if external API is locked or offline
+               return await FallbackToLocalDatabasePricesAsync();
+           }
+
+           throw new InvalidOperationException("Market data currently unavailable.");
+       }
+
+       private Task<List<CryptoPriceDto>> FallbackToLocalDatabasePricesAsync()
+       {
+           // Call repositories/database to extract last cached values
+           return Task.FromResult(new List<CryptoPriceDto>());
+       }
+   }
+   ```
+
+---
+
+## 9. Step 8: Event-Driven Architecture with Background Hosted Services (`BackgroundService`)
+
+The legacy Google Cloud Pub/Sub integration was unmanaged and manually bound to direct routing hubs. In .NET 10, all long-running asynchronous message processors and event streaming consumers MUST be managed as **Hosted Background Services** inheriting from **`BackgroundService`**:
+
+1. **Scaffold Background Hosted Listener:** Create a background worker that launches with Kestrel startup, pulls messages asynchronously, and handles graceful cancellation tokens cleanly:
+   ```csharp
+   using Microsoft.Extensions.Hosting;
+   using CryptoTrading.Infrastructure.PubSub;
+
+   namespace CryptoTrading.Core.Infrastructure.BackgroundWorkers;
+
+   public class PubSubBackgroundSubscriber : BackgroundService
+   {
+       private readonly IPubSubSubscriber _subscriber;
+       private readonly ILogger<PubSubBackgroundSubscriber> _logger;
+       private readonly IServiceProvider _serviceProvider;
+
+       public PubSubBackgroundSubscriber(
+           IPubSubSubscriber subscriber, 
+           ILogger<PubSubBackgroundSubscriber> logger,
+           IServiceProvider serviceProvider)
+       {
+           _subscriber = subscriber;
+           _logger = logger;
+           _serviceProvider = serviceProvider;
+       }
+
+       protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+       {
+           _logger.LogInformation("Google Cloud Pub/Sub Background Subscriber is starting...");
+
+           // Initialize the subscription thread
+           _subscriber.Subscribe<OrderExecutionMessage>(
+               "order-execution-sub", 
+               async (orderingKey, message) =>
+               {
+                   _logger.LogDebug("Processing execution for Order: {OrderId}, Key: {Key}", message.OrderId, orderingKey);
+                   
+                   // Resolve scoped domain services safely inside background thread scope
+                   using var scope = _serviceProvider.CreateScope();
+                   var tradingService = scope.ServiceProvider.GetRequiredService<ITradingService>();
+
+                   await tradingService.ProcessAsynchronousExecutionAsync(message);
+               }, 
+               stoppingToken
+           );
+
+           // Keep background thread alive while cancellation is not requested
+           while (!stoppingToken.IsCancellationRequested)
+           {
+               await Task.Delay(1000, stoppingToken);
+           }
+
+           _logger.LogInformation("Google Cloud Pub/Sub Background Subscriber is stopping gracefully...");
+           _subscriber.Stop();
+       }
+   }
+   ```
+2. **Register Hosted Service in DI Extension:**
+   Add the background service to the collection inside `DependencyInjectionExtensions.cs` so its lifecycle is managed natively:
+   ```csharp
+   public static IServiceCollection AddCoreServices(this IServiceCollection services)
+   {
+       services.AddMemoryCache();
+       services.AddScoped<IAuthService, AuthService>();
+       services.AddScoped<ICryptoService, CryptoService>();
+       services.AddScoped<ITradingService, TradingService>();
+       services.AddScoped<IPortfolioService, PortfolioService>();
+
+       // Register the Pub/Sub Subscriber Worker as a Hosted Lifecycle Service
+       services.AddHostedService<PubSubBackgroundSubscriber>();
+
+       return services;
+   }
+   ```
+
+---
+
+## 10. Step 9: AI Verification Checklist & Build Validation
 
 Before declaring the migration of the application core complete, the AI shall run and verify:
 
 1. **Compilable Codebase:** Execute `dotnet build` from the `CryptoTrading.Core/` directory. Ensure there are 0 compilation errors or blocking nullable warnings.
 2. **Missing Controller Verification:** Inspect the built assembly (or files) to ensure **zero** references to Microsoft.AspNetCore.Mvc.ControllerBase are present, and no `/Controllers` directory exists.
-3. **Database Connectivity Validation:** Verify the database connection string and query behavior.
-4. **JWT Expiration & Issuance Audits:** Execute automated unit tests against the `IAuthService` logic to confirm robust token generation and claim mapping.
+3. **Resilient HTTP Client Verifications:** Verify that the Typed HttpClient handles transient errors gracefully, does not lock up under rate-limiting scenarios, and falls back to SQL cache properly.
+4. **Graceful Worker Shutdown Tests:** Check that stopping the application sends correct cancellation signals to `PubSubBackgroundSubscriber` and closes GCP connections instantly with zero leakage.
+5. **Database Connectivity Validation:** Verify the database connection string and query behavior.
+6. **JWT Expiration & Issuance Audits:** Execute automated unit tests against the `IAuthService` logic to confirm robust token generation and claim mapping.
+
