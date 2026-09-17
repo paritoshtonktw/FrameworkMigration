@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CryptoTrading.Core/CryptoTrading.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CryptoTrading.Core.Tests/CryptoTrading.Core.Tests.csproj" />
+  </Folder>
+</Solution>
