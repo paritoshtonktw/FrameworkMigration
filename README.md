@@ -91,10 +91,18 @@ The project uses native Microsoft SQL Server scripts for database migrations and
    docker-compose up -d
    ```
 
-2. Wait ~15 seconds for SQL Server to initialize, then run the initialization script:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File database/scripts/init-db.ps1 -Server "localhost,1433" -Database "CryptoTradingDB" -User "sa" -Password "CryptoTrading!2026Secure"
-   ```
+2. Wait ~15 seconds for SQL Server to initialize, then run the initialization script based on your operating system:
+
+   - **On macOS / Linux (using native Docker command):**
+     Run the following command from the workspace root to execute the master SQL initialization script inside the container:
+     ```bash
+     docker exec -i cryptotrading-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "CryptoTrading!2026Secure" -C -i /docker-entrypoint-initdb.d/scripts/RunAll.sql
+     ```
+
+   - **On Windows (using PowerShell):**
+     ```powershell
+     powershell -ExecutionPolicy Bypass -File database/scripts/init-db.ps1 -Server "localhost,1433" -Database "CryptoTradingDB" -User "sa" -Password "CryptoTrading!2026Secure"
+     ```
 
 ---
 
@@ -133,14 +141,44 @@ The backend configuration is managed via `Crypto Trading/Crypto Trading/Web.conf
 
 ## 5. Building & Running the Backend
 
-### Building with MSBuild or Visual Studio
+The platform supports both the modern uplifted .NET Core backend and the legacy .NET Framework backend. The React frontend is pre-configured to connect to the modern backend by default.
+
+### Modern Uplifted .NET Core Backend (Recommended)
+
+The modernized backend is located in the `CryptoTrading.Core` directory and is built using ASP.NET Core (.NET 10.0).
+
+#### Running via .NET CLI:
+1. Open a terminal and navigate to the project directory:
+   ```bash
+   cd CryptoTrading.Core
+   ```
+2. Run the application:
+   ```bash
+   dotnet run --project src/CryptoTrading.Core
+   ```
+   Or from the workspace root:
+   ```bash
+   dotnet run --project CryptoTrading.Core/src/CryptoTrading.Core/CryptoTrading.Core.csproj
+   ```
+
+#### Once running:
+- **Default Start Page (Swagger UI):** `http://localhost:5152/swagger` (or `https://localhost:7164/swagger`)
+- **Backend Web API URL:** `http://localhost:5152/api/`
+- **OpenAPI Schema JSON:** `http://localhost:5152/openapi/v1.json`
+- **CORS Support:** Pre-configured to support React development server origins (such as `http://localhost:3000`).
+
+---
+
+### Legacy .NET Framework Backend (Legacy)
+
+#### Building with MSBuild or Visual Studio
 
 1. Open `Crypto Trading/Crypto Trading.sln` (or `Crypto Trading.slnx`) in Visual Studio, or build from PowerShell:
    ```powershell
    & "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" "Crypto Trading\Crypto Trading.sln" /p:Configuration=Debug /v:m
    ```
 
-### Running via IIS Express
+#### Running via IIS Express
 
 Run IIS Express from PowerShell:
 ```powershell
@@ -153,10 +191,14 @@ Once running:
 - **Swagger Docs JSON:** `http://localhost:44341/swagger/docs/v1`
 - **CORS Support:** Enabled for all incoming frontend origins.
 
+---
+
 ### Running the React Frontend (`Crypto Trader React`)
 
+The React frontend is configured to target the modern, uplifted .NET Core backend running at `http://localhost:5152/api` by default.
+
 - **Direct Browser Launch (Zero-Install):**
-  Simply open `Crypto Trader React/index.html` in any web browser. It connects directly to `http://localhost:44341/api`.
+  Simply open `Crypto Trader React/index.html` in any web browser. It connects directly to `http://localhost:5152/api`.
 - **Or via Node / npm (Development Server):**
   ```bash
   cd "Crypto Trader React"
@@ -168,8 +210,23 @@ Once running:
 
 ## 6. Running Automated Tests
 
-The solution includes comprehensive unit and integration tests covering authentication, trade execution, financial atomicity, and stored procedure interaction against LocalDB:
+The solution includes comprehensive unit and integration test suites covering authentication, trade execution, financial atomicity, and stored procedure interaction against LocalDB:
 
+### Modern Uplifted .NET Core Backend Tests (Recommended)
+
+Run tests for the modernized ASP.NET Core project:
+```bash
+dotnet test "CryptoTrading.Core/tests/CryptoTrading.Core.Tests/CryptoTrading.Core.Tests.csproj" -v normal
+```
+
+Expected result:
+```text
+Passed! - Failed: 0, Passed: 25, Skipped: 0, Total: 25
+```
+
+### Legacy .NET Framework Backend Tests
+
+Run tests for the legacy .NET Framework project:
 ```powershell
 dotnet test "Crypto Trading/tests/CryptoTrading.Tests/CryptoTrading.Tests.csproj" -v normal
 ```

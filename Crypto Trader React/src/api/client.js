@@ -1,6 +1,6 @@
 /**
  * Centralized API Client for Crypto Trader React
- * Communicates with the ASP.NET Web API 2 backend at http://localhost:44341/api
+ * Communicates with the ASP.NET Core backend at http://localhost:5152/api
  */
 
 import { API_BASE_URL } from '../config';

@@ -123,7 +123,7 @@ export default function Trading({
         <div className="trading-view">
             {backendOffline && (
                 <div className="alert alert-error mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>http://localhost:44341/api</code>. Start the backend server to fetch live CoinGecko prices.</span>
+                    <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>http://localhost:5152/api</code>. Start the backend server to fetch live CoinGecko prices.</span>
                     {onRefreshMarket && (
                         <button className="btn btn-sm btn-outline" onClick={onRefreshMarket} style={{ marginLeft: '1rem' }}>
                             Retry Connection

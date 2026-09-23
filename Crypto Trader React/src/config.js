@@ -14,7 +14,7 @@ export const REFRESH_INTERVAL_SECONDS = parseInt(
 export const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_SECONDS * 1000;
 
 // Backend API Base URL
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:44341/api';
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5152/api';
 
 const config = {
     REFRESH_INTERVAL_SECONDS,

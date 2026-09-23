@@ -21,7 +21,7 @@ namespace CryptoTrading.Tests
         [SetUp]
         public void Setup()
         {
-            _dbFactory = new SqlConnectionFactory(@"Server=(localdb)\CryptoTradingDB;Database=CryptoTradingDB;Integrated Security=True;TrustServerCertificate=True;");
+            _dbFactory = new SqlConnectionFactory(@"Server=localhost,1433;Database=CryptoTradingDB;User Id=sa;Password=CryptoTrading!2026Secure;TrustServerCertificate=True;");
             _accountRepo = new AccountRepository(_dbFactory);
             _tradingRepo = new TradingRepository(_dbFactory);
             _depositRepo = new DepositRepository(_dbFactory);

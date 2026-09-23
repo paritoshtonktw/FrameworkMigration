@@ -25,7 +25,7 @@ namespace CryptoTrading.Data
                 var connSetting = ConfigurationManager.ConnectionStrings["CryptoTradingDB"];
                 _connectionString = connSetting != null 
                     ? connSetting.ConnectionString 
-                    : @"Server=(localdb)\CryptoTradingDB;Database=CryptoTradingDB;Integrated Security=True;TrustServerCertificate=True;";
+                    : @"Server=localhost,1433;Database=CryptoTradingDB;User Id=sa;Password=CryptoTrading!2026Secure;TrustServerCertificate=True;";
             }
         }
 

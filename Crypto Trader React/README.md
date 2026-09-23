@@ -1,6 +1,6 @@
 # Crypto Trader React — Frontend Application
 
-A modular React 18 Single-Page Application (SPA) designed to interface with the ASP.NET Web API 2 backend of the **CryptoTrading** platform.
+A modular React 18 Single-Page Application (SPA) designed to interface with the uplifted ASP.NET Core backend of the **CryptoTrading** platform.
 
 This project is completely decoupled from the .NET backend solution and resides in its own standalone directory.
 
@@ -17,7 +17,7 @@ Crypto Trader React/
 │   └── index.html            # Standard React HTML template
 └── src/
     ├── api/
-    │   └── client.js         # Centralized REST API client (http://localhost:44341/api)
+    │   └── client.js         # Centralized REST API client (http://localhost:5152/api)
     ├── components/
     │   ├── Navbar.jsx        # Sticky navigation with live cash & portfolio balances
     │   ├── Login.jsx         # Sign-in with quick 1-click demo logins (35.1)
@@ -43,7 +43,7 @@ Crypto Trader React/
 
 You do not need Node.js or npm installed to run the application:
 
-1. Ensure the ASP.NET Web API backend is running on `http://localhost:44341`.
+1. Ensure the ASP.NET Core backend is running on `http://localhost:5152`.
 2. Double-click or open `Crypto Trader React/index.html` in any web browser (Google Chrome, Microsoft Edge, Mozilla Firefox).
 3. The application loads React 18 and Babel directly, connects to the local Web API, and is ready for trading immediately!
 
@@ -69,10 +69,10 @@ If Node.js 18+ is installed on your machine:
 
 ## 3. Backend Configuration
 
-The API client in `src/api/client.js` is configured to target the ASP.NET Web API 2 backend:
+The API client in `src/api/client.js` is configured to target the ASP.NET Core backend:
 
 ```javascript
-const API_BASE_URL = 'http://localhost:44341/api';
+const API_BASE_URL = 'http://localhost:5152/api';
 ```
 
 If hosting the backend on a different port or domain, update `API_BASE_URL` accordingly. The backend has Cross-Origin Resource Sharing (CORS) enabled (`*`) to allow cross-origin requests.
