@@ -114,6 +114,7 @@
     <Compile Include="Controllers\AuthController.cs" />
     <Compile Include="Controllers\CryptocurrenciesController.cs" />
     <Compile Include="Controllers\PortfolioController.cs" />
+    <Compile Include="Controllers\ReportsController.cs" />
     <Compile Include="Controllers\OrdersController.cs" />
     <Compile Include="Controllers\TradesController.cs" />
     <Compile Include="Controllers\TransactionsController.cs" />

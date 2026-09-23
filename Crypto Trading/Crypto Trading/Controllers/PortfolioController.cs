@@ -5,7 +5,6 @@ using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using System.Web.Http;
 using CryptoTrading.Business.Services;
-using CryptoTrading.Infrastructure.Reports;
 using CryptoTrading.Web.Security;
 
 namespace CryptoTrading.Web.Controllers
@@ -16,30 +15,25 @@ namespace CryptoTrading.Web.Controllers
     {
         private readonly IPortfolioService _portfolioService;
         private readonly ITradingService _tradingService;
-        private readonly IPdfReportService _pdfReportService;
 
         public PortfolioController() : this(
             DependencyConfig.PortfolioService,
-            DependencyConfig.TradingService,
-            DependencyConfig.PdfReportService)
+            DependencyConfig.TradingService)
         {
         }
 
         public PortfolioController(IPortfolioService portfolioService) : this(
             portfolioService,
-            DependencyConfig.TradingService,
-            DependencyConfig.PdfReportService)
+            DependencyConfig.TradingService)
         {
         }
 
         public PortfolioController(
             IPortfolioService portfolioService,
-            ITradingService tradingService,
-            IPdfReportService pdfReportService)
+            ITradingService tradingService)
         {
             _portfolioService = portfolioService;
             _tradingService = tradingService;
-            _pdfReportService = pdfReportService;
         }
 
         [HttpGet]
@@ -82,26 +76,6 @@ namespace CryptoTrading.Web.Controllers
             {
                 return BadRequest(ex.Message);
             }
-        }
-
-        [HttpGet]
-        [Route("reports/pnl-settlement")]
-        public async Task<HttpResponseMessage> DownloadPnLReport([FromUri] string timeframe = "30d")
-        {
-            var pdfBytes = await _pdfReportService.GeneratePnLAndSettlementReportAsync(CurrentUserId, timeframe);
-
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent(pdfBytes)
-            };
-
-            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-            response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment")
-            {
-                FileName = $"Crypto_PnL_Settlement_Report_{timeframe}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf"
-            };
-
-            return response;
         }
     }
 }
