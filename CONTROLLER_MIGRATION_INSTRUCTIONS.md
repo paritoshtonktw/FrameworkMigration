@@ -63,7 +63,8 @@ When given a target legacy controller to migrate, the AI shall execute the follo
 
 ### Step 2: Data & Model Modernization
 1. Create modernized, strongly-typed C# classes for all dependent models, DTOs, and request objects. Place them in the corresponding `Models/` directories (`DTOs/`, `Entities/`, `Requests/`).
-2. Implement or update the dependent repositories to use .NET 10 standards with **Dapper** as described in `MIGRATION_INSTRUCTIONS.md`. Ensure all repository methods are fully asynchronous and wrap connections in scoped `using` blocks.
+2. **Strict Validation & Nullability Alignment:** Carefully review the frontend/legacy client JSON payloads to align model validation rules and optional fields. Ensure fields passed as `null` or omitted (such as `price` on `MARKET` orders) are typed as nullable in modern C# DTOs (e.g., `decimal? Price`) to prevent model state binding failures (HTTP 400 Bad Request) caused by framework constraints.
+3. Implement or update the dependent repositories to use .NET 10 standards with **Dapper** as described in `MIGRATION_INSTRUCTIONS.md`. Ensure all repository methods are fully asynchronous and wrap connections in scoped `using` blocks.
 
 ### Step 3: Business Service Modernization & Refactoring
 1. **Direct DB Refactoring:** If the legacy controller has direct database queries or repository calls, you must:
@@ -74,7 +75,7 @@ When given a target legacy controller to migrate, the AI shall execute the follo
 
 ### Step 4: Scaffold Modernized Controller
 1. The target controller must inherit from the uniform `BaseApiController` (defined in Section 3) to enforce standard claims extraction and response envelopes.
-2. **100% Contract Fidelity:** The target controller endpoints MUST match the legacy controller routes, HTTP verbs, query parameters, and response structures exactly.
+2. **100% Contract & Validation Fidelity:** The target controller endpoints MUST match the legacy controller routes, HTTP verbs, query parameters, and response structures exactly. Do not alter, tighten, or omit validations unless explicitly requested. Pay close attention to keeping exact route patterns, query parameter names, and body payloads.
 3. **Serialization Casing:** Ensure JSON outputs match the camelCase requirement of the React SPA frontend.
 
 ### Step 5: Dependency Injection & Verification
