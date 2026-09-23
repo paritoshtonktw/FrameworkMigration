@@ -12,7 +12,6 @@ This project is completely decoupled from the .NET backend solution and resides 
 Crypto Trader React/
 ├── package.json              # Standard npm dependencies & scripts
 ├── README.md                 # Frontend documentation
-├── index.html                # Standalone zero-install runnable (runs immediately in any browser)
 ├── public/
 │   └── index.html            # Standard React HTML template
 └── src/
@@ -38,16 +37,6 @@ Crypto Trader React/
 ---
 
 ## 2. How to Run
-
-### Option A: Immediate Zero-Install Launch (No Node.js Required)
-
-You do not need Node.js or npm installed to run the application:
-
-1. Ensure the ASP.NET Core backend is running on `http://localhost:5152`.
-2. Double-click or open `Crypto Trader React/index.html` in any web browser (Google Chrome, Microsoft Edge, Mozilla Firefox).
-3. The application loads React 18 and Babel directly, connects to the local Web API, and is ready for trading immediately!
-
-### Option B: Using Node.js & npm (Development Server)
 
 If Node.js 18+ is installed on your machine:
 

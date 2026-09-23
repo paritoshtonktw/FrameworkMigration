@@ -197,14 +197,12 @@ Once running:
 
 The React frontend is configured to target the modern, uplifted .NET Core backend running at `http://localhost:5152/api` by default.
 
-- **Direct Browser Launch (Zero-Install):**
-  Simply open `Crypto Trader React/index.html` in any web browser. It connects directly to `http://localhost:5152/api`.
-- **Or via Node / npm (Development Server):**
-  ```bash
-  cd "Crypto Trader React"
-  npm install
-  npm start
-  ```
+Run via Node / npm (Development Server):
+```bash
+cd "Crypto Trader React"
+npm install
+npm start
+```
 
 ---
 

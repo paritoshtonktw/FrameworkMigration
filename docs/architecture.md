@@ -61,7 +61,7 @@ The cryptocurrency paper-trading platform is deliberately architected as an **AS
 ### 2.1 Presentation Layer: `Crypto Trader React` (Separate React 18 Project)
 - Maintained as an independent project directory (`Crypto Trader React/`) completely decoupled from the .NET backend.
 - Communicates exclusively over JSON REST APIs with CORS support enabled on the backend.
-- Supports both immediate zero-install execution via browser (`index.html`) and standard npm development workflows (`npm start`).
+- Run via standard npm development workflows (`npm start`).
 - Maintains user session via `localStorage` JWT token storage.
 - Implements responsive desktop/tablet UI across all 9 required screens:
   - Auth: Login (`35.1`), Registration (`35.2`)
