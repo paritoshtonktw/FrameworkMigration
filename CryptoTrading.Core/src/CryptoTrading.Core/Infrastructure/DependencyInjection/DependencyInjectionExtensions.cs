@@ -33,6 +33,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<ITradingRepository, TradingRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<IPortfolioRepository, PortfolioRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
         return services;
     }
 
@@ -49,6 +50,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<ICryptoService, CryptoService>();
         services.AddScoped<ITradingService, TradingService>();
         services.AddScoped<IPortfolioService, PortfolioService>();
+        services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IOrderExecutionProcessor, OrderExecutionProcessor>();
         services.AddTransient<Func<ITradingService>>(sp => () => sp.GetRequiredService<ITradingService>());
 

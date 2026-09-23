@@ -17,5 +17,5 @@ public class CreateOrderRequest
     [Range(0.000001, 1000000.0)]
     public decimal Quantity { get; set; }
 
-    public decimal Price { get; set; } // Required if LIMIT order
+    public decimal? Price { get; set; } // Required if LIMIT order
 }
