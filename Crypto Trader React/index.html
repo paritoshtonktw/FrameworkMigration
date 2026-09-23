@@ -14,7 +14,57 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const API_BASE = 'http://localhost:5152/api';
+        const LEGACY_URL = 'http://localhost:44341/api';
+        const UPLIFTED_URL = 'http://localhost:5152/api';
+
+        const getEnvValue = () => {
+            if (typeof process !== 'undefined' && process.env) {
+                return (
+                    process.env.REACT_APP_BACKEND ||
+                    process.env.REACT_APP_ENV ||
+                    process.env.REACT_APP_BACKEND_ENV ||
+                    process.env.REACT_APP_ACTIVE_BACKEND ||
+                    ''
+                ).toLowerCase();
+            }
+            if (typeof window !== 'undefined') {
+                if (window.process && window.process.env) {
+                    return (
+                        window.process.env.REACT_APP_BACKEND ||
+                        window.process.env.REACT_APP_ENV ||
+                        window.process.env.REACT_APP_BACKEND_ENV ||
+                        window.process.env.REACT_APP_ACTIVE_BACKEND ||
+                        ''
+                    ).toLowerCase();
+                }
+                if (window.ENV) {
+                    return (
+                        window.ENV.REACT_APP_BACKEND ||
+                        window.ENV.REACT_APP_ENV ||
+                        window.ENV.REACT_APP_BACKEND_ENV ||
+                        window.ENV.REACT_APP_ACTIVE_BACKEND ||
+                        ''
+                    ).toLowerCase();
+                }
+            }
+            return '';
+        };
+
+        const getQueryValue = () => {
+            if (typeof window !== 'undefined' && window.location) {
+                const urlParams = new URLSearchParams(window.location.search);
+                return (urlParams.get('backend') || urlParams.get('env') || '').toLowerCase();
+            }
+            return '';
+        };
+
+        const envVal = getEnvValue() || getQueryValue();
+        const isLegacy = envVal.includes('legacy') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL && process.env.REACT_APP_API_BASE_URL.includes('44341'));
+
+        const API_BASE = isLegacy ? LEGACY_URL : ((typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL) || UPLIFTED_URL);
+        const IS_LEGACY_BACKEND = isLegacy;
+        const BACKEND_LABEL = IS_LEGACY_BACKEND ? 'LEGACY AS-IS' : 'UPLIFTED CORE';
+        const BACKEND_LABEL_LONG = IS_LEGACY_BACKEND ? 'LEGACY AS-IS PLATFORM' : 'UPLIFTED .NET CORE PLATFORM';
         const REFRESH_INTERVAL_SECONDS = 20;
         const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_SECONDS * 1000;
 
@@ -303,7 +353,9 @@
                             <div className="auth-brand">
                                 <span className="brand-logo">⚡</span>
                                 <h1>CryptoTrader</h1>
-                                <span className="badge-legacy">SEPARATE REACT PROJECT</span>
+                                <span className={IS_LEGACY_BACKEND ? "badge-legacy" : "badge-uplifted"}>
+                                    {BACKEND_LABEL_LONG}
+                                </span>
                             </div>
                             {authMode === 'login' ? (
                                 <LoginView
@@ -338,7 +390,9 @@
                         <div className="navbar-brand">
                             <span className="logo-icon">⚡</span>
                             <span className="brand-title">CryptoTrader</span>
-                            <span className="badge-legacy">REACT CLIENT</span>
+                            <span className={IS_LEGACY_BACKEND ? "badge-legacy" : "badge-uplifted"}>
+                                {BACKEND_LABEL}
+                            </span>
                         </div>
 
                         <nav className="navbar-nav">
@@ -547,7 +601,7 @@
                     )}
                     {backendOffline && (
                         <div className="alert alert-error mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>http://localhost:5152/api</code>. Start the backend server to fetch live CoinGecko prices.</span>
+                            <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>{API_BASE}</code>. Start the backend server to fetch live CoinGecko prices.</span>
                             {onRefreshMarket && (
                                 <button className="btn btn-sm btn-outline" onClick={onRefreshMarket} style={{ marginLeft: '1rem' }}>
                                     Retry Connection
@@ -1129,7 +1183,7 @@
                 <div className="trading-container-wrapper">
                     {backendOffline && (
                         <div className="alert alert-error mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>http://localhost:5152/api</code>. Start the backend server to fetch live CoinGecko prices.</span>
+                            <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>{API_BASE}</code>. Start the backend server to fetch live CoinGecko prices.</span>
                             {onRefreshMarket && (
                                 <button className="btn btn-sm btn-outline" onClick={onRefreshMarket} style={{ marginLeft: '1rem' }}>
                                     Retry Connection

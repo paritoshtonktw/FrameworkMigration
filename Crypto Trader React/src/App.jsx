@@ -11,7 +11,7 @@ import Trades from './components/Trades';
 import Ledger from './components/Ledger';
 import Funds from './components/Funds';
 import Profile from './components/Profile';
-import { REFRESH_INTERVAL_SECONDS, REFRESH_INTERVAL_MS } from './config';
+import { REFRESH_INTERVAL_SECONDS, REFRESH_INTERVAL_MS, IS_LEGACY_BACKEND, BACKEND_LABEL_LONG } from './config';
 
 export default function App() {
     const [user, setUser] = useState(() => authStorage.getUser());
@@ -151,7 +151,9 @@ export default function App() {
                     <div className="auth-brand">
                         <span className="brand-logo">⚡</span>
                         <h1>CryptoTrader</h1>
-                        <span className="badge-legacy">LEGACY AS-IS PLATFORM</span>
+                        <span className={IS_LEGACY_BACKEND ? "badge-legacy" : "badge-uplifted"}>
+                            {BACKEND_LABEL_LONG}
+                        </span>
                     </div>
 
                     {authMode === 'login' ? (

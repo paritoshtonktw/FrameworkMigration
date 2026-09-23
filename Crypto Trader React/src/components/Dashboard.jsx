@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api/client';
 import { extractPortfolio, formatMoney, safeNum } from '../utils/formatters';
-import { REFRESH_INTERVAL_SECONDS } from '../config';
+import { REFRESH_INTERVAL_SECONDS, API_BASE_URL } from '../config';
 
 export default function Dashboard({
     portfolio,
@@ -54,7 +54,7 @@ export default function Dashboard({
         <div className="dashboard-view">
             {backendOffline && (
                 <div className="alert alert-error mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>http://localhost:5152/api</code>. Start the backend server to fetch live CoinGecko prices.</span>
+                    <span><strong>⚠️ Backend Unreachable:</strong> Cannot connect to <code>{API_BASE_URL}</code>. Start the backend server to fetch live CoinGecko prices.</span>
                     {onRefreshMarket && (
                         <button className="btn btn-sm btn-outline" onClick={onRefreshMarket} style={{ marginLeft: '1rem' }}>
                             Retry Connection

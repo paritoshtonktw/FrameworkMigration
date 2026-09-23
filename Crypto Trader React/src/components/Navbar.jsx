@@ -1,5 +1,6 @@
 import React from 'react';
 import { extractPortfolio, formatMoney } from '../utils/formatters';
+import { IS_LEGACY_BACKEND, BACKEND_LABEL } from '../config';
 
 export default function Navbar({ activeTab, setActiveTab, user, portfolio, onLogout }) {
     const { cash, total } = extractPortfolio(portfolio);
@@ -11,7 +12,9 @@ export default function Navbar({ activeTab, setActiveTab, user, portfolio, onLog
             <div className="navbar-brand">
                 <span className="logo-icon">⚡</span>
                 <span className="brand-title">CryptoTrader</span>
-                <span className="badge-legacy">LEGACY AS-IS</span>
+                <span className={IS_LEGACY_BACKEND ? "badge-legacy" : "badge-uplifted"}>
+                    {BACKEND_LABEL}
+                </span>
             </div>
 
             <nav className="navbar-nav">
