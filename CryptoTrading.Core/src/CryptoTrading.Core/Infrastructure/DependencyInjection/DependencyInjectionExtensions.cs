@@ -8,7 +8,6 @@ using CryptoTrading.Infrastructure.Security;
 using CryptoTrading.Infrastructure.Logging;
 using CryptoTrading.Infrastructure.MarketData;
 using CryptoTrading.Infrastructure.PubSub;
-using CryptoTrading.Infrastructure.Reports;
 
 namespace CryptoTrading.Core.Infrastructure.DependencyInjection;
 
@@ -31,7 +30,6 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IDepositRepository, DepositRepository>();
         services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
         services.AddScoped<ICryptocurrencyRepository, CryptocurrencyRepository>();
-        services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ITradingRepository, TradingRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<IPortfolioRepository, PortfolioRepository>();
@@ -49,10 +47,8 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IFinancialService, FinancialService>();
         services.AddScoped<ICryptoService, CryptoService>();
-        services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<ITradingService, TradingService>();
         services.AddScoped<IPortfolioService, PortfolioService>();
-        services.AddScoped<IPdfReportService, PdfReportService>();
         services.AddScoped<IOrderExecutionProcessor, OrderExecutionProcessor>();
         services.AddTransient<Func<ITradingService>>(sp => () => sp.GetRequiredService<ITradingService>());
 

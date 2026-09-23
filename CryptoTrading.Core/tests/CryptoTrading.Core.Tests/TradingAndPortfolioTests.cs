@@ -9,7 +9,6 @@ using CryptoTrading.Business.Services;
 using CryptoTrading.Data.Repositories;
 using CryptoTrading.Infrastructure.Logging;
 using CryptoTrading.Infrastructure.MarketData;
-using CryptoTrading.Infrastructure.Reports;
 using CryptoTrading.Models.DTOs;
 using CryptoTrading.Models.Entities;
 using CryptoTrading.Models.Requests;
@@ -29,7 +28,6 @@ public class TradingAndPortfolioTests
 
     private TradingService _tradingService = null!;
     private PortfolioService _portfolioService = null!;
-    private PdfReportService _pdfReportService = null!;
 
     [SetUp]
     public void Setup()
@@ -50,14 +48,6 @@ public class TradingAndPortfolioTests
         );
 
         _portfolioService = new PortfolioService(_portfolioRepoMock.Object);
-
-        _pdfReportService = new PdfReportService(
-            _userRepoMock.Object,
-            _portfolioRepoMock.Object,
-            _tradingRepoMock.Object,
-            _txRepoMock.Object,
-            _loggerMock.Object
-        );
     }
 
     [Test]
@@ -149,34 +139,5 @@ public class TradingAndPortfolioTests
         Assert.That(res, Is.Not.Null);
         Assert.That(res.Summary.TotalPortfolioValue, Is.EqualTo(25000m));
         Assert.That(res.Holdings.Count, Is.EqualTo(1));
-    }
-
-    [Test]
-    public async Task GeneratePnLReport_ValidData_GeneratesPdfStatementBytes()
-    {
-        // Arrange
-        var user = new User { UserId = 1, Username = "trader_alice", Email = "alice@test.com" };
-        var portfolioDto = new PortfolioDto
-        {
-            Summary = new PortfolioSummaryDto { UserId = 1, Username = "trader_alice", TotalPortfolioValue = 10000m, CashBalance = 2000m, HoldingsMarketValue = 8000m, UnrealizedProfitLoss = 500m },
-            Holdings = new List<HoldingDto> { new() { WalletId = 15, Symbol = "BTC", Quantity = 0.1m, AverageCost = 75000m, CurrentPrice = 80000m, CurrentValue = 8000m, UnrealizedProfitLoss = 500m } }
-        };
-
-        _userRepoMock.Setup(u => u.GetUserByIdAsync(1)).ReturnsAsync(user);
-        _portfolioRepoMock.Setup(p => p.GetPortfolioAsync(1)).ReturnsAsync(portfolioDto);
-        _tradingRepoMock.Setup(t => t.GetTradesByUserAsync(1, It.IsAny<int>())).ReturnsAsync(new List<TradeDto>());
-        _txRepoMock.Setup(t => t.GetTransactionsByUserAsync(1, It.IsAny<int>())).ReturnsAsync(new List<TransactionDto>());
-
-        // Act
-        var pdfBytes = await _pdfReportService.GeneratePnLAndSettlementReportAsync(1, "30d");
-
-        // Assert
-        Assert.That(pdfBytes, Is.Not.Null);
-        Assert.That(pdfBytes.Length, Is.GreaterThan(100));
-
-        var pdfAscii = Encoding.ASCII.GetString(pdfBytes);
-        Assert.That(pdfAscii, Does.Contain("%PDF-1.4"));
-        Assert.That(pdfAscii, Does.Contain("CRYPTO TRADING PLATFORM"));
-        Assert.That(pdfAscii, Does.Contain("trader_alice"));
     }
 }
