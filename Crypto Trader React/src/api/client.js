@@ -187,7 +187,7 @@ export const api = {
             authStorage.notifySessionExpired('expired');
             throw new Error('Your session has expired. Please sign in again.');
         }
-        const res = await fetch(`${API_BASE_URL}/portfolio/reports/pnl-settlement?timeframe=${encodeURIComponent(timeframe)}`, {
+        const res = await fetch(`${API_BASE_URL}/reports/pnl-settlement?timeframe=${encodeURIComponent(timeframe)}`, {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         });
         if (res.status === 401) {
