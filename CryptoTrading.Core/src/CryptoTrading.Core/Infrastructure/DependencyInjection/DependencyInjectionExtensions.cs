@@ -8,6 +8,7 @@ using CryptoTrading.Infrastructure.Security;
 using CryptoTrading.Infrastructure.Logging;
 using CryptoTrading.Infrastructure.MarketData;
 using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Reports;
 
 namespace CryptoTrading.Core.Infrastructure.DependencyInjection;
 
@@ -52,6 +53,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IPortfolioService, PortfolioService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IOrderExecutionProcessor, OrderExecutionProcessor>();
+        services.AddScoped<IPdfReportService, PdfReportService>();
         services.AddTransient<Func<ITradingService>>(sp => () => sp.GetRequiredService<ITradingService>());
 
         services.AddHttpClient<ICryptoMarketService, CoinGeckoMarketService>(client =>
