@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Web.Http.Results;
 using CryptoTrading.Business.Services;
 using CryptoTrading.Infrastructure.Logging;
-using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Sqs;
 using CryptoTrading.Models.DTOs;
 using CryptoTrading.Models.Requests;
 using CryptoTrading.Web.Controllers;
@@ -19,7 +19,7 @@ using NUnit.Framework;
 namespace CryptoTrading.Tests
 {
     [TestFixture]
-    public class PubSubIntegrationTests
+    public class SqsIntegrationTests
     {
         private Mock<ILoggerService> _mockLogger;
 
@@ -27,57 +27,55 @@ namespace CryptoTrading.Tests
         public void Setup()
         {
             _mockLogger = new Mock<ILoggerService>();
-            PubSubMessageHub.Instance.Clear();
+            SqsMessageHub.Instance.Clear();
             MarketTickHotCacheSubscriber.Clear();
         }
 
         [Test]
-        public void PubSubConfig_LoadsCorrectDefaults_WhenNotConfigured()
+        public void SqsConfig_LoadsCorrectDefaults_WhenNotConfigured()
         {
-            var config = PubSubConfig.FromConfiguration();
+            var config = SqsConfig.FromConfiguration();
 
             Assert.IsNotNull(config);
-            Assert.AreEqual("cryptotrading-gcp-dev", config.ProjectId);
-            Assert.AreEqual("localhost:8085", config.EmulatorHost);
-            Assert.AreEqual("crypto-orders-incoming", config.OrdersIncomingTopic);
-            Assert.AreEqual("crypto-orders-executed", config.OrdersExecutedTopic);
-            Assert.AreEqual("crypto-market-ticks", config.MarketTicksTopic);
-            Assert.AreEqual("crypto-orders-incoming-sub", config.OrderPushSubscription);
-            Assert.AreEqual("crypto-market-ticks-sub", config.TickSubscription);
+            Assert.AreEqual("us-east-1", config.AwsRegion);
+            Assert.AreEqual("http://localhost:4566", config.ServiceUrl);
+            Assert.AreEqual("https://sqs.us-east-1.amazonaws.com/123456789012/crypto-orders-incoming.fifo", config.OrdersIncomingQueueUrl);
+            Assert.AreEqual("https://sqs.us-east-1.amazonaws.com/123456789012/crypto-orders-executed.fifo", config.OrdersExecutedQueueUrl);
+            Assert.AreEqual("https://sqs.us-east-1.amazonaws.com/123456789012/crypto-market-ticks.fifo", config.MarketTicksQueueUrl);
             Assert.IsTrue(config.TickSubscriberEnabled);
         }
 
         [Test]
-        public void PubSubConfig_GcpEnvironmentVariables_OverridesWebConfig()
+        public void SqsConfig_AwsEnvironmentVariables_OverridesWebConfig()
         {
             try
             {
-                Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "my-prod-gcp-project");
-                Environment.SetEnvironmentVariable("PUBSUB_ORDERS_INCOMING_TOPIC", "gcp-orders-in");
-                Environment.SetEnvironmentVariable("PUBSUB_ORDERS_EXECUTED_TOPIC", "gcp-orders-out");
-                Environment.SetEnvironmentVariable("PUBSUB_PUSH_ENDPOINT_SECRET", "TOP_SECRET_123");
-                Environment.SetEnvironmentVariable("PUBSUB_TICK_SUBSCRIBER_ENABLED", "false");
+                Environment.SetEnvironmentVariable("SQS_AWS_REGION", "us-west-2");
+                Environment.SetEnvironmentVariable("SQS_ORDERS_INCOMING_QUEUE_URL", "https://sqs.us-west-2.amazonaws.com/123456789012/sqs-orders-in.fifo");
+                Environment.SetEnvironmentVariable("SQS_ORDERS_EXECUTED_QUEUE_URL", "https://sqs.us-west-2.amazonaws.com/123456789012/sqs-orders-out.fifo");
+                Environment.SetEnvironmentVariable("SQS_WEBHOOK_SECRET", "TOP_SECRET_123");
+                Environment.SetEnvironmentVariable("SQS_TICK_SUBSCRIBER_ENABLED", "false");
 
-                var config = PubSubConfig.FromConfiguration();
+                var config = SqsConfig.FromConfiguration();
 
-                Assert.AreEqual("my-prod-gcp-project", config.ProjectId);
-                Assert.AreEqual("gcp-orders-in", config.OrdersIncomingTopic);
-                Assert.AreEqual("gcp-orders-out", config.OrdersExecutedTopic);
-                Assert.AreEqual("TOP_SECRET_123", config.PushEndpointSecret);
+                Assert.AreEqual("us-west-2", config.AwsRegion);
+                Assert.AreEqual("https://sqs.us-west-2.amazonaws.com/123456789012/sqs-orders-in.fifo", config.OrdersIncomingQueueUrl);
+                Assert.AreEqual("https://sqs.us-west-2.amazonaws.com/123456789012/sqs-orders-out.fifo", config.OrdersExecutedQueueUrl);
+                Assert.AreEqual("TOP_SECRET_123", config.WebhookSecret);
                 Assert.IsFalse(config.TickSubscriberEnabled);
             }
             finally
             {
-                Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", null);
-                Environment.SetEnvironmentVariable("PUBSUB_ORDERS_INCOMING_TOPIC", null);
-                Environment.SetEnvironmentVariable("PUBSUB_ORDERS_EXECUTED_TOPIC", null);
-                Environment.SetEnvironmentVariable("PUBSUB_PUSH_ENDPOINT_SECRET", null);
-                Environment.SetEnvironmentVariable("PUBSUB_TICK_SUBSCRIBER_ENABLED", null);
+                Environment.SetEnvironmentVariable("SQS_AWS_REGION", null);
+                Environment.SetEnvironmentVariable("SQS_ORDERS_INCOMING_QUEUE_URL", null);
+                Environment.SetEnvironmentVariable("SQS_ORDERS_EXECUTED_QUEUE_URL", null);
+                Environment.SetEnvironmentVariable("SQS_WEBHOOK_SECRET", null);
+                Environment.SetEnvironmentVariable("SQS_TICK_SUBSCRIBER_ENABLED", null);
             }
         }
 
         [Test]
-        public void PubSubEvents_SerializationAndDeserialization_MaintainsPrecision()
+        public void SqsEvents_SerializationAndDeserialization_MaintainsPrecision()
         {
             var placed = new OrderPlacedEvent
             {
@@ -101,19 +99,19 @@ namespace CryptoTrading.Tests
         }
 
         [Test]
-        public async Task PubSubPublisher_PublishesMessage_WithOrderingKey_AndSubscriberReceives()
+        public async Task SqsPublisher_PublishesMessage_WithMessageGroupId_AndSubscriberReceives()
         {
-            var config = new PubSubConfig { Enabled = true, MarketTicksTopic = "test.ticks" };
-            var publisher = new PubSubPublisher(config, _mockLogger.Object);
-            var subscriber = new PubSubSubscriber(config, _mockLogger.Object);
+            var config = new SqsConfig { Enabled = true, MarketTicksQueueUrl = "test.ticks" };
+            var publisher = new SqsPublisher(config, _mockLogger.Object);
+            var subscriber = new SqsSubscriber(config, _mockLogger.Object);
 
-            string receivedKey = null;
+            string receivedGroupId = null;
             MarketTickEvent receivedTick = null;
             var tcs = new TaskCompletionSource<bool>();
 
-            subscriber.Subscribe<MarketTickEvent>("test.ticks", (key, tick) =>
+            subscriber.Subscribe<MarketTickEvent>("test.ticks", (groupId, tick) =>
             {
-                receivedKey = key;
+                receivedGroupId = groupId;
                 receivedTick = tick;
                 tcs.TrySetResult(true);
                 return Task.CompletedTask;
@@ -132,31 +130,31 @@ namespace CryptoTrading.Tests
 
             var completed = await Task.WhenAny(tcs.Task, Task.Delay(1000));
             Assert.AreEqual(tcs.Task, completed, "Subscriber should receive the published message within 1 second.");
-            Assert.AreEqual("BTC", receivedKey);
+            Assert.AreEqual("BTC", receivedGroupId);
             Assert.IsNotNull(receivedTick);
             Assert.AreEqual(64500.75m, receivedTick.CurrentPrice);
             Assert.AreEqual("Bitcoin", receivedTick.Name);
         }
 
         [Test]
-        public async Task PubSubPublisher_HandlesDisabledOrOffline_GracefullyWithoutThrowing()
+        public async Task SqsPublisher_HandlesDisabledOrOffline_GracefullyWithoutThrowing()
         {
-            var config = new PubSubConfig { Enabled = false };
-            var publisher = new PubSubPublisher(config, _mockLogger.Object);
+            var config = new SqsConfig { Enabled = false };
+            var publisher = new SqsPublisher(config, _mockLogger.Object);
 
             Assert.IsFalse(publisher.IsActive);
 
-            var success = await publisher.PublishAsync("test.topic", "KEY", new { Hello = "World" });
+            var success = await publisher.PublishAsync("test.queue", "KEY", new { Hello = "World" });
             Assert.IsTrue(success, "Publisher in fallback mode should complete without unhandled exceptions.");
         }
 
         [Test]
         public async Task OrderExecutionProcessor_ExecutesOrder_AndEmitsExecutionResult()
         {
-            var config = new PubSubConfig
+            var config = new SqsConfig
             {
                 Enabled = true,
-                OrdersExecutedTopic = "test.orders.out"
+                OrdersExecutedQueueUrl = "test.orders.out"
             };
 
             var mockTradingService = new Mock<ITradingService>();
@@ -170,7 +168,7 @@ namespace CryptoTrading.Tests
                     TotalValue = 130000.00m
                 });
 
-            var publisher = new PubSubPublisher(config, _mockLogger.Object);
+            var publisher = new SqsPublisher(config, _mockLogger.Object);
             var processor = new OrderExecutionProcessor(() => mockTradingService.Object, publisher, config, _mockLogger.Object);
 
             var correlationId = Guid.NewGuid();
@@ -197,14 +195,14 @@ namespace CryptoTrading.Tests
         [Test]
         public async Task MarketTickHotCacheSubscriber_IngestsTick_AndProvidesSubMillisecondLookup()
         {
-            var config = new PubSubConfig
+            var config = new SqsConfig
             {
                 Enabled = true,
-                MarketTicksTopic = "crypto-market-ticks"
+                MarketTicksQueueUrl = "crypto-market-ticks"
             };
 
-            var publisher = new PubSubPublisher(config, _mockLogger.Object);
-            var subscriber = new PubSubSubscriber(config, _mockLogger.Object);
+            var publisher = new SqsPublisher(config, _mockLogger.Object);
+            var subscriber = new SqsSubscriber(config, _mockLogger.Object);
             var hotCache = new MarketTickHotCacheSubscriber(subscriber, config, _mockLogger.Object);
 
             hotCache.Start();
@@ -230,7 +228,7 @@ namespace CryptoTrading.Tests
         }
 
         [Test]
-        public async Task PubSubWebhookController_ProcessesRawOrderPlaced_ReturnsOk()
+        public async Task SqsWebhookController_ProcessesRawOrderPlaced_ReturnsOk()
         {
             var mockProcessor = new Mock<IOrderExecutionProcessor>();
             mockProcessor
@@ -246,8 +244,8 @@ namespace CryptoTrading.Tests
                     ExecutedPrice = 145.50m
                 });
 
-            var config = new PubSubConfig();
-            var controller = new PubSubWebhookController(mockProcessor.Object, config, _mockLogger.Object);
+            var config = new SqsConfig();
+            var controller = new SqsWebhookController(mockProcessor.Object, config, _mockLogger.Object);
 
             var rawOrder = JToken.FromObject(new OrderPlacedEvent
             {
@@ -268,7 +266,7 @@ namespace CryptoTrading.Tests
         }
 
         [Test]
-        public async Task PubSubWebhookController_ProcessesNativePubSubPushEnvelope_DecodesBase64_ReturnsOk()
+        public async Task SqsWebhookController_ProcessesNativeSqsPushEnvelope_ReturnsOk()
         {
             var mockProcessor = new Mock<IOrderExecutionProcessor>();
             mockProcessor
@@ -282,8 +280,8 @@ namespace CryptoTrading.Tests
                     Status = "FILLED"
                 });
 
-            var config = new PubSubConfig();
-            var controller = new PubSubWebhookController(mockProcessor.Object, config, _mockLogger.Object);
+            var config = new SqsConfig();
+            var controller = new SqsWebhookController(mockProcessor.Object, config, _mockLogger.Object);
 
             var order = new OrderPlacedEvent
             {
@@ -295,22 +293,34 @@ namespace CryptoTrading.Tests
             };
 
             var orderJson = JsonConvert.SerializeObject(order);
-            var base64Data = Convert.ToBase64String(Encoding.UTF8.GetBytes(orderJson));
 
-            // Standard Google Cloud Pub/Sub Push envelope
-            var pubsubPushEnvelope = new JObject
+            // Standard AWS SQS Push envelope
+            var sqsPushEnvelope = new JObject
             {
-                ["message"] = new JObject
+                ["Records"] = new JArray
                 {
-                    ["data"] = base64Data,
-                    ["messageId"] = "2070443601872934",
-                    ["orderingKey"] = "AVAX",
-                    ["publishTime"] = DateTime.UtcNow.ToString("o")
-                },
-                ["subscription"] = "projects/my-gcp-project/subscriptions/crypto-orders-incoming-sub"
+                    new JObject
+                    {
+                        ["messageId"] = "19dd0b1e-9459-4c0e-908d-f952f4469502",
+                        ["receiptHandle"] = "MessageReceiptHandle",
+                        ["body"] = orderJson,
+                        ["attributes"] = new JObject
+                        {
+                            ["ApproximateReceiveCount"] = "1",
+                            ["SentTimestamp"] = "1520621625029",
+                            ["SenderId"] = "123456789012",
+                            ["ApproximateFirstReceiveTimestamp"] = "1520621625033"
+                        },
+                        ["messageAttributes"] = new JObject(),
+                        ["md5OfBody"] = "098f6bcd4621d373cade4e832627b4f6",
+                        ["eventSource"] = "aws:sqs",
+                        ["eventSourceARN"] = "arn:aws:sqs:us-east-1:123456789012:crypto-orders-incoming.fifo",
+                        ["awsRegion"] = "us-east-1"
+                    }
+                }
             };
 
-            var actionResult = await controller.ProcessOrderPlacedPush(pubsubPushEnvelope);
+            var actionResult = await controller.ProcessOrderPlacedPush(sqsPushEnvelope);
 
             Assert.IsInstanceOf<OkNegotiatedContentResult<ApiResponse<OrderExecutedEvent>>>(actionResult);
             var okResult = (OkNegotiatedContentResult<ApiResponse<OrderExecutedEvent>>)actionResult;
@@ -319,15 +329,15 @@ namespace CryptoTrading.Tests
         }
 
         [Test]
-        public async Task PubSubWebhookController_RejectsInvalidSecret_WhenConfigured()
+        public async Task SqsWebhookController_RejectsInvalidSecret_WhenConfigured()
         {
             var mockProcessor = new Mock<IOrderExecutionProcessor>();
-            var config = new PubSubConfig
+            var config = new SqsConfig
             {
-                PushEndpointSecret = "SECRET_GCP_999"
+                WebhookSecret = "SECRET_SQS_999"
             };
 
-            var controller = new PubSubWebhookController(mockProcessor.Object, config, _mockLogger.Object);
+            var controller = new SqsWebhookController(mockProcessor.Object, config, _mockLogger.Object);
 
             var rawOrder = JToken.FromObject(new OrderPlacedEvent
             {
@@ -345,19 +355,19 @@ namespace CryptoTrading.Tests
         }
 
         [Test]
-        public void PubSubManager_StartsAndStops_Successfully()
+        public void SqsManager_StartsAndStops_Successfully()
         {
-            var config = new PubSubConfig
+            var config = new SqsConfig
             {
                 Enabled = true,
                 TickSubscriberEnabled = true,
-                MarketTicksTopic = "crypto-market-ticks",
-                OrdersIncomingTopic = "crypto-orders-incoming",
-                OrdersExecutedTopic = "crypto-orders-executed"
+                MarketTicksQueueUrl = "crypto-market-ticks",
+                OrdersIncomingQueueUrl = "crypto-orders-incoming",
+                OrdersExecutedQueueUrl = "crypto-orders-executed"
             };
 
             var mockTradingService = new Mock<ITradingService>();
-            var manager = new PubSubManager(config, _mockLogger.Object, () => mockTradingService.Object);
+            var manager = new SqsManager(config, _mockLogger.Object, () => mockTradingService.Object);
 
             Assert.DoesNotThrow(() => manager.Start());
             Assert.IsTrue(manager.IsRunning);
@@ -367,4 +377,3 @@ namespace CryptoTrading.Tests
         }
     }
 }
-

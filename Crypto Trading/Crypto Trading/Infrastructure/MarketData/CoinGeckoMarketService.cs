@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using CryptoTrading.Data.Repositories;
 using CryptoTrading.Infrastructure.Logging;
-using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Sqs;
 using CryptoTrading.Models.DTOs;
 using CryptoTrading.Models.Entities;
 
@@ -26,7 +26,7 @@ namespace CryptoTrading.Infrastructure.MarketData
     {
         private readonly ICryptocurrencyRepository _cryptoRepo;
         private readonly ILoggerService _logger;
-        private readonly IPubSubPublisher _pubSubPublisher;
+        private readonly ISqsPublisher _sqsPublisher;
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly MemoryCache _cache = MemoryCache.Default;
         private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(
@@ -78,11 +78,11 @@ namespace CryptoTrading.Infrastructure.MarketData
         {
         }
 
-        public CoinGeckoMarketService(ICryptocurrencyRepository cryptoRepo, ILoggerService logger, IPubSubPublisher pubSubPublisher)
+        public CoinGeckoMarketService(ICryptocurrencyRepository cryptoRepo, ILoggerService logger, ISqsPublisher sqsPublisher)
         {
             _cryptoRepo = cryptoRepo;
             _logger = logger;
-            _pubSubPublisher = pubSubPublisher;
+            _sqsPublisher = sqsPublisher;
         }
 
         public async Task<List<CryptocurrencyDto>> GetMarketCryptocurrenciesAsync(bool forceRefresh = false)
@@ -146,12 +146,12 @@ namespace CryptoTrading.Infrastructure.MarketData
                         _cache.Set(cacheKey, result, DateTimeOffset.UtcNow.Add(CacheDuration));
                         _logger.Info($"Fetched and cached fresh market prices for {result.Count} cryptocurrencies from CoinGecko (forceRefresh={forceRefresh}).");
 
-                        // Stream price ticks to Google Cloud Pub/Sub topic crypto-market-ticks
-                        if (_pubSubPublisher != null && _pubSubPublisher.IsActive)
+                        // Stream price ticks to AWS SQS queue crypto-market-ticks
+                        if (_sqsPublisher != null && _sqsPublisher.IsActive)
                         {
                             try
                             {
-                                var pubsubTopic = PubSubConfig.FromConfiguration().MarketTicksTopic;
+                                var sqsQueueUrl = SqsConfig.FromConfiguration().MarketTicksQueueUrl;
                                 foreach (var coin in result)
                                 {
                                     var tick = new MarketTickEvent
@@ -163,12 +163,12 @@ namespace CryptoTrading.Infrastructure.MarketData
                                         PriceChange24h = coin.PriceChange24h,
                                         LastUpdated = DateTime.UtcNow
                                     };
-                                    await _pubSubPublisher.PublishAsync(pubsubTopic, tick.Symbol, tick);
+                                    await _sqsPublisher.PublishAsync(sqsQueueUrl, tick.Symbol, tick);
                                 }
                             }
-                            catch (Exception psEx)
+                            catch (Exception sqsEx)
                             {
-                                _logger.Warn($"[PubSub] Could not publish market ticks: {psEx.Message}");
+                                _logger.Warn($"[SQS] Could not publish market ticks: {sqsEx.Message}");
                             }
                         }
 

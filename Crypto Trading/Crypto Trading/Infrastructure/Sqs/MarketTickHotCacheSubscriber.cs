@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 using CryptoTrading.Infrastructure.Logging;
 using CryptoTrading.Models.DTOs;
 
-namespace CryptoTrading.Infrastructure.PubSub
+namespace CryptoTrading.Infrastructure.Sqs
 {
     /// <summary>
-    /// Subscribes to crypto-market-ticks in Google Cloud Pub/Sub and maintains an in-memory hot cache
+    /// Subscribes to crypto-market-ticks in AWS SQS queue and maintains an in-memory hot cache
     /// for sub-millisecond price lookups without hitting CoinGecko API or SQL Server.
     /// </summary>
     public class MarketTickHotCacheSubscriber : IDisposable
     {
-        private readonly IPubSubSubscriber _subscriber;
-        private readonly PubSubConfig _config;
+        private readonly ISqsSubscriber _subscriber;
+        private readonly SqsConfig _config;
         private readonly ILoggerService _logger;
         private static readonly ConcurrentDictionary<string, CryptocurrencyDto> _staticCache =
             new ConcurrentDictionary<string, CryptocurrencyDto>(StringComparer.OrdinalIgnoreCase);
@@ -24,19 +24,19 @@ namespace CryptoTrading.Infrastructure.PubSub
         public int CachedTickCount => _staticCache.Count;
 
         public MarketTickHotCacheSubscriber(
-            IPubSubSubscriber subscriber,
-            PubSubConfig config,
+            ISqsSubscriber subscriber,
+            SqsConfig config,
             ILoggerService logger)
         {
             _subscriber = subscriber;
-            _config = config ?? PubSubConfig.FromConfiguration();
+            _config = config ?? SqsConfig.FromConfiguration();
             _logger = logger;
         }
 
         public void Start(CancellationToken ct = default)
         {
-            _logger?.Info($"[MarketTickHotCacheSubscriber] Subscribing to market ticks on topic '{_config.MarketTicksTopic}'...");
-            _subscriber.Subscribe<MarketTickEvent>(_config.MarketTicksTopic, HandleMarketTickAsync, ct);
+            _logger?.Info($"[MarketTickHotCacheSubscriber] Subscribing to market ticks on queue '{_config.MarketTicksQueueUrl}'...");
+            _subscriber.Subscribe<MarketTickEvent>(_config.MarketTicksQueueUrl, HandleMarketTickAsync, ct);
         }
 
         private Task HandleMarketTickAsync(string symbolKey, MarketTickEvent tick)

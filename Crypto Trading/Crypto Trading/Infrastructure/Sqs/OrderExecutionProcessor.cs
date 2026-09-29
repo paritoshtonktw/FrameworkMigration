@@ -4,29 +4,29 @@ using CryptoTrading.Business.Services;
 using CryptoTrading.Infrastructure.Logging;
 using CryptoTrading.Models.Requests;
 
-namespace CryptoTrading.Infrastructure.PubSub
+namespace CryptoTrading.Infrastructure.Sqs
 {
     /// <summary>
     /// Executes incoming orders atomically via TradingService (sp_ExecuteTrade)
-    /// and publishes completion events to Google Cloud Pub/Sub (crypto-orders-executed).
-    /// Used by both Pub/Sub Push webhook receivers and background subscribers.
+    /// and publishes completion events to AWS SQS (crypto-orders-executed).
+    /// Used by both SQS Webhook receivers and background subscribers.
     /// </summary>
     public class OrderExecutionProcessor : IOrderExecutionProcessor
     {
         private readonly Func<ITradingService> _tradingServiceFactory;
-        private readonly IPubSubPublisher _publisher;
-        private readonly PubSubConfig _config;
+        private readonly ISqsPublisher _publisher;
+        private readonly SqsConfig _config;
         private readonly ILoggerService _logger;
 
         public OrderExecutionProcessor(
             Func<ITradingService> tradingServiceFactory,
-            IPubSubPublisher publisher,
-            PubSubConfig config,
+            ISqsPublisher publisher,
+            SqsConfig config,
             ILoggerService logger)
         {
             _tradingServiceFactory = tradingServiceFactory ?? throw new ArgumentNullException(nameof(tradingServiceFactory));
             _publisher = publisher;
-            _config = config ?? PubSubConfig.FromConfiguration();
+            _config = config ?? SqsConfig.FromConfiguration();
             _logger = logger;
         }
 
@@ -34,7 +34,7 @@ namespace CryptoTrading.Infrastructure.PubSub
         {
             if (order == null) throw new ArgumentNullException(nameof(order));
 
-            _logger?.Info($"[PubSub:OrderExecutionProcessor] Processing Order {order.CorrelationId}: {order.Side} {order.Quantity} {order.Symbol} for User {order.UserId}");
+            _logger?.Info($"[Sqs:OrderExecutionProcessor] Processing Order {order.CorrelationId}: {order.Side} {order.Quantity} {order.Symbol} for User {order.UserId}");
 
             var executedEvent = new OrderExecutedEvent
             {
@@ -78,23 +78,22 @@ namespace CryptoTrading.Infrastructure.PubSub
                     executedEvent.TotalAmount = sellResult.TotalAmount;
                 }
 
-                _logger?.Info($"[PubSub:OrderExecutionProcessor] Successfully executed Order {order.CorrelationId} -> Trade {executedEvent.TradeId} @ ${executedEvent.ExecutedPrice}");
+                _logger?.Info($"[Sqs:OrderExecutionProcessor] Successfully executed Order {order.CorrelationId} -> Trade {executedEvent.TradeId} @ ${executedEvent.ExecutedPrice}");
             }
             catch (Exception ex)
             {
-                _logger?.Error($"[PubSub:OrderExecutionProcessor] Order {order.CorrelationId} execution failed: {ex.Message}", ex);
+                _logger?.Error($"[Sqs:OrderExecutionProcessor] Order {order.CorrelationId} execution failed: {ex.Message}", ex);
                 executedEvent.Status = "REJECTED";
                 executedEvent.ErrorMessage = ex.Message;
             }
 
-            // Publish execution result to crypto-orders-executed with OrderingKey = Symbol
+            // Publish execution result to crypto-orders-executed with MessageGroupId = Symbol
             if (_publisher != null && _publisher.IsActive)
             {
-                await _publisher.PublishAsync(_config.OrdersExecutedTopic, order.Symbol, executedEvent);
+                await _publisher.PublishAsync(_config.OrdersExecutedQueueUrl, order.Symbol, executedEvent);
             }
 
             return executedEvent;
         }
     }
 }
-

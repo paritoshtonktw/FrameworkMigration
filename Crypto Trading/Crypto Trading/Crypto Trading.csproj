@@ -121,7 +121,7 @@
     <Compile Include="Controllers\DepositsController.cs" />
     <Compile Include="Controllers\WithdrawalsController.cs" />
     <Compile Include="Controllers\ProfileController.cs" />
-    <Compile Include="Controllers\PubSubWebhookController.cs" />
+    <Compile Include="Controllers\SqsWebhookController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
@@ -145,17 +145,17 @@
     <Compile Include="Data\Repositories\UserRepository.cs" />
     <Compile Include="Data\Repositories\WalletRepository.cs" />
     <!-- Infrastructure -->
-    <Compile Include="Infrastructure\PubSub\PubSubConfig.cs" />
-    <Compile Include="Infrastructure\PubSub\PubSubEvents.cs" />
-    <Compile Include="Infrastructure\PubSub\PubSubMessageHub.cs" />
-    <Compile Include="Infrastructure\PubSub\IPubSubPublisher.cs" />
-    <Compile Include="Infrastructure\PubSub\PubSubPublisher.cs" />
-    <Compile Include="Infrastructure\PubSub\IPubSubSubscriber.cs" />
-    <Compile Include="Infrastructure\PubSub\PubSubSubscriber.cs" />
-    <Compile Include="Infrastructure\PubSub\IOrderExecutionProcessor.cs" />
-    <Compile Include="Infrastructure\PubSub\OrderExecutionProcessor.cs" />
-    <Compile Include="Infrastructure\PubSub\MarketTickHotCacheSubscriber.cs" />
-    <Compile Include="Infrastructure\PubSub\PubSubManager.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsConfig.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsEvents.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsMessageHub.cs" />
+    <Compile Include="Infrastructure\Sqs\ISqsPublisher.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsPublisher.cs" />
+    <Compile Include="Infrastructure\Sqs\ISqsSubscriber.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsSubscriber.cs" />
+    <Compile Include="Infrastructure\Sqs\IOrderExecutionProcessor.cs" />
+    <Compile Include="Infrastructure\Sqs\OrderExecutionProcessor.cs" />
+    <Compile Include="Infrastructure\Sqs\MarketTickHotCacheSubscriber.cs" />
+    <Compile Include="Infrastructure\Sqs\SqsManager.cs" />
     <Compile Include="Infrastructure\Logging\LoggerService.cs" />
     <Compile Include="Infrastructure\MarketData\CoinGeckoMarketService.cs" />
     <Compile Include="Infrastructure\Reports\PdfReportService.cs" />

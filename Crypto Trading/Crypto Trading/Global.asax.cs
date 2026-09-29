@@ -12,14 +12,14 @@ namespace CryptoTrading.Web
             XmlConfigurator.Configure();
             GlobalConfiguration.Configure(WebApiConfig.Register);
 
-            // Initialize and start Google Cloud Pub/Sub streaming workers
+            // Initialize and start AWS SQS streaming workers
             try
             {
-                DependencyConfig.PubSubManager.Start();
+                DependencyConfig.SqsManager.Start();
             }
             catch (Exception ex)
             {
-                DependencyConfig.Logger?.Error($"Failed to start Google Cloud Pub/Sub services: {ex.Message}", ex);
+                DependencyConfig.Logger?.Error($"Failed to start AWS SQS services: {ex.Message}", ex);
             }
         }
 
@@ -27,11 +27,11 @@ namespace CryptoTrading.Web
         {
             try
             {
-                DependencyConfig.PubSubManager.Stop();
+                DependencyConfig.SqsManager.Stop();
             }
             catch (Exception ex)
             {
-                DependencyConfig.Logger?.Error($"Failed to stop Google Cloud Pub/Sub services: {ex.Message}", ex);
+                DependencyConfig.Logger?.Error($"Failed to stop AWS SQS services: {ex.Message}", ex);
             }
         }
     }

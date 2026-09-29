@@ -37,7 +37,7 @@ CryptoTrading.Core/
     │   └── DependencyInjectionExtensions.cs
     ├── Logging/
     ├── MarketData/
-    ├── PubSub/
+    ├── Sqs/
     └── Security/
 ```
 
@@ -233,10 +233,10 @@ Scaffold a clean configuration mapping the legacy settings into a standardized m
     "Audience": "CryptoTradingReact",
     "ExpiryHours": 24
   },
-  "PubSub": {
+  "Sqs": {
     "Enabled": false,
-    "ProjectId": "mock-gcp-project",
-    "EmulatorHost": "localhost:8085"
+    "AwsRegion": "us-east-1",
+    "ServiceUrl": "http://localhost:4566"
   },
   "AllowedHosts": "*"
 }
@@ -479,10 +479,10 @@ When migrating individual vertical slices (including models, repositories, busin
 ### 8.1 Typed HttpClients & Polly Resilience (e.g., CoinGecko Integration)
 External HTTP API clients (such as `CoinGeckoMarketService`) must be typed and configured with Polly resilience pipelines (retry mechanics, circuit breaker) in `DependencyInjectionExtensions.cs` using `Microsoft.Extensions.Http.Resilience`.
 
-### 8.2 Hosted Background Services (e.g., GCP Pub/Sub Integration)
-Long-running asynchronous consumers (such as `PubSubBackgroundSubscriber`) must inherit from `BackgroundService` and register as lifecycle-managed hosted services:
+### 8.2 Hosted Background Services (e.g., AWS SQS Integration)
+Long-running asynchronous consumers (such as `SqsBackgroundSubscriber`) must inherit from `BackgroundService` and register as lifecycle-managed hosted services:
 ```csharp
-services.AddHostedService<PubSubBackgroundSubscriber>();
+services.AddHostedService<SqsBackgroundSubscriber>();
 ```
 
 ---

@@ -281,22 +281,22 @@ The REST API exposes the following primary endpoints:
 - `POST /api/deposits` — Simulated cash deposit
 - `POST /api/withdrawals` — Simulated cash withdrawal
 - `GET /api/profile` — View user profile and account details
-- `POST /api/pubsub/order-placed` — Google Cloud Pub/Sub native Push Subscription endpoint (Base64 unwrapping, FIFO execution)
-- `POST /api/pubsub/order-executed` — Post-execution audit and notification Push Subscription endpoint
+- `POST /api/sqs/order-placed` — AWS SQS native Push Webhook endpoint (JSON/Records parsing, FIFO execution)
+- `POST /api/sqs/order-executed` — Post-execution audit and notification Push Webhook endpoint
 
 For complete endpoint specifications, request/response schemas, and example payloads, refer to [`docs/api.md`](docs/api.md).
 
 ---
 
-## 10. Google Cloud Pub/Sub & GCP Serverless Readiness
+## 10. AWS SQS & AWS Serverless Readiness
 
-The platform includes a Google Cloud Pub/Sub messaging architecture optimized for **GCP Cloud Run**:
-- **Topics:** `crypto-orders-incoming`, `crypto-orders-executed`, `crypto-market-ticks`.
-- **Strict FIFO per Asset:** Uses Pub/Sub `orderingKey = Symbol` (e.g. `BTC`, `ETH`) for sequential order execution.
-- **Serverless Push Subscriptions:** Cloud Run receives order matching events via HTTPS POST to `POST /api/pubsub/order-placed`, auto-acknowledging with HTTP 200 OK.
+The platform includes an AWS SQS messaging architecture optimized for **AWS ECS/EKS/Lambda**:
+- **Queues (FIFO):** `crypto-orders-incoming.fifo`, `crypto-orders-executed.fifo`, `crypto-market-ticks.fifo`.
+- **Strict FIFO per Asset:** Uses SQS `MessageGroupId = Symbol` (e.g. `BTC`, `ETH`) for sequential order execution.
+- **Serverless Push Webhooks:** AWS Lambda or API Gateway forwards incoming order matching events via HTTPS POST to `POST /api/sqs/order-placed`, auto-acknowledging with HTTP 200 OK.
 - **Sub-Millisecond In-Memory Cache:** `MarketTickHotCacheSubscriber` maintains live market prices in a thread-safe hot cache.
-- **Local Emulation:** Run `docker-compose up -d pubsub-emulator` from `docker/` for local development against port `8085`.
-- **Graceful Fallback:** If Pub/Sub is disabled or unreachable, the system automatically falls back to an in-process event hub without throwing exceptions.
+- **Local Emulation:** Run `docker-compose up -d localstack` from `docker/` for local development against port `4566`.
+- **Graceful Fallback:** If SQS is disabled or unreachable, the system automatically falls back to an in-process event hub without throwing exceptions.
 
 ---
 

@@ -4,39 +4,39 @@ using System.Threading.Tasks;
 using CryptoTrading.Infrastructure.Logging;
 using Newtonsoft.Json;
 
-namespace CryptoTrading.Infrastructure.PubSub
+namespace CryptoTrading.Infrastructure.Sqs
 {
     /// <summary>
-    /// Google Cloud Pub/Sub Subscriber supporting in-memory event bus and pull/push subscription models.
+    /// AWS SQS Subscriber supporting in-memory event bus and polling/push models.
     /// </summary>
-    public class PubSubSubscriber : IPubSubSubscriber
+    public class SqsSubscriber : ISqsSubscriber
     {
-        private readonly PubSubConfig _config;
+        private readonly SqsConfig _config;
         private readonly ILoggerService _logger;
-        private readonly PubSubMessageHub _hub;
+        private readonly SqsMessageHub _hub;
         private long _messagesReceivedCount = 0;
         private bool _isStopped = false;
 
         public bool IsActive => _config != null && _config.Enabled && !_isStopped;
         public long MessagesReceivedCount => Interlocked.Read(ref _messagesReceivedCount);
 
-        public PubSubSubscriber(PubSubConfig config, ILoggerService logger)
+        public SqsSubscriber(SqsConfig config, ILoggerService logger)
         {
-            _config = config ?? PubSubConfig.FromConfiguration();
+            _config = config ?? SqsConfig.FromConfiguration();
             _logger = logger;
-            _hub = PubSubMessageHub.Instance;
+            _hub = SqsMessageHub.Instance;
         }
 
-        public void Subscribe<T>(string topicOrSubscriptionId, Func<string, T, Task> messageHandler, CancellationToken cancellationToken = default)
+        public void Subscribe<T>(string queueUrl, Func<string, T, Task> messageHandler, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(topicOrSubscriptionId))
-                throw new ArgumentException("Topic or Subscription ID cannot be empty", nameof(topicOrSubscriptionId));
+            if (string.IsNullOrWhiteSpace(queueUrl))
+                throw new ArgumentException("Queue URL cannot be empty", nameof(queueUrl));
             if (messageHandler == null)
                 throw new ArgumentNullException(nameof(messageHandler));
 
-            _logger?.Info($"[PubSubSubscriber] Registering subscription for '{topicOrSubscriptionId}'...");
+            _logger?.Info($"[SqsSubscriber] Registering subscription for '{queueUrl}'...");
 
-            _hub.Subscribe(topicOrSubscriptionId, async (orderingKey, jsonPayload, attributes) =>
+            _hub.Subscribe(queueUrl, async (messageGroupId, jsonPayload, attributes) =>
             {
                 if (_isStopped || cancellationToken.IsCancellationRequested) return;
 
@@ -46,12 +46,12 @@ namespace CryptoTrading.Infrastructure.PubSub
                     var deserialized = JsonConvert.DeserializeObject<T>(jsonPayload);
                     if (deserialized != null)
                     {
-                        await messageHandler(orderingKey, deserialized);
+                        await messageHandler(messageGroupId, deserialized);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Error($"[PubSubSubscriber] Error processing message on '{topicOrSubscriptionId}' with key '{orderingKey}': {ex.Message}", ex);
+                    _logger?.Error($"[SqsSubscriber] Error processing message on '{queueUrl}' with message group ID '{messageGroupId}': {ex.Message}", ex);
                 }
             });
         }
@@ -59,7 +59,7 @@ namespace CryptoTrading.Infrastructure.PubSub
         public void Stop()
         {
             _isStopped = true;
-            _logger?.Info("[PubSubSubscriber] Subscriptions stopped.");
+            _logger?.Info("[SqsSubscriber] Subscriptions stopped.");
         }
 
         public void Dispose()
@@ -68,4 +68,3 @@ namespace CryptoTrading.Infrastructure.PubSub
         }
     }
 }
-

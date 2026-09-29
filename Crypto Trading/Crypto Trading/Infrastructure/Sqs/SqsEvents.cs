@@ -1,6 +1,6 @@
 using System;
 
-namespace CryptoTrading.Infrastructure.PubSub
+namespace CryptoTrading.Infrastructure.Sqs
 {
     public class OrderPlacedEvent
     {

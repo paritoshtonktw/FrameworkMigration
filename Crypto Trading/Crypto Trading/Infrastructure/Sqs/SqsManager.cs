@@ -3,39 +3,39 @@ using System.Threading;
 using CryptoTrading.Business.Services;
 using CryptoTrading.Infrastructure.Logging;
 
-namespace CryptoTrading.Infrastructure.PubSub
+namespace CryptoTrading.Infrastructure.Sqs
 {
     /// <summary>
-    /// Lifecycle coordinator for Google Cloud Pub/Sub publisher, subscribers, and background hot cache workers.
+    /// Lifecycle coordinator for AWS SQS publisher, subscribers, and background hot cache workers.
     /// </summary>
-    public class PubSubManager : IDisposable
+    public class SqsManager : IDisposable
     {
-        private readonly PubSubConfig _config;
+        private readonly SqsConfig _config;
         private readonly ILoggerService _logger;
-        private readonly IPubSubPublisher _publisher;
-        private readonly IPubSubSubscriber _subscriber;
+        private readonly ISqsPublisher _publisher;
+        private readonly ISqsSubscriber _subscriber;
         private readonly MarketTickHotCacheSubscriber _tickSubscriber;
         private readonly IOrderExecutionProcessor _orderProcessor;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private bool _isRunning = false;
 
-        public IPubSubPublisher Publisher => _publisher;
-        public IPubSubSubscriber Subscriber => _subscriber;
+        public ISqsPublisher Publisher => _publisher;
+        public ISqsSubscriber Subscriber => _subscriber;
         public MarketTickHotCacheSubscriber TickSubscriber => _tickSubscriber;
         public IOrderExecutionProcessor OrderProcessor => _orderProcessor;
         public bool IsRunning => _isRunning;
 
-        public PubSubManager(
-            PubSubConfig config,
+        public SqsManager(
+            SqsConfig config,
             ILoggerService logger,
             Func<ITradingService> tradingServiceFactory,
             IOrderExecutionProcessor orderProcessor = null)
         {
-            _config = config ?? PubSubConfig.FromConfiguration();
+            _config = config ?? SqsConfig.FromConfiguration();
             _logger = logger;
 
-            _publisher = new PubSubPublisher(_config, _logger);
-            _subscriber = new PubSubSubscriber(_config, _logger);
+            _publisher = new SqsPublisher(_config, _logger);
+            _subscriber = new SqsSubscriber(_config, _logger);
             _orderProcessor = orderProcessor ?? new OrderExecutionProcessor(tradingServiceFactory, _publisher, _config, _logger);
             _tickSubscriber = new MarketTickHotCacheSubscriber(_subscriber, _config, _logger);
         }
@@ -44,27 +44,27 @@ namespace CryptoTrading.Infrastructure.PubSub
         {
             if (_isRunning) return;
 
-            _logger?.Info("[PubSubManager] Initializing Google Cloud Pub/Sub streaming services...");
+            _logger?.Info("[SqsManager] Initializing AWS SQS streaming services...");
 
             if (_config.Enabled && _config.TickSubscriberEnabled)
             {
                 _tickSubscriber.Start(_cts.Token);
-                _logger?.Info("[PubSubManager] MarketTickHotCacheSubscriber started (real-time price streaming).");
+                _logger?.Info("[SqsManager] MarketTickHotCacheSubscriber started (real-time price streaming).");
             }
             else
             {
-                _logger?.Info("[PubSubManager] MarketTickHotCacheSubscriber disabled.");
+                _logger?.Info("[SqsManager] MarketTickHotCacheSubscriber disabled.");
             }
 
             _isRunning = true;
-            _logger?.Info("[PubSubManager] Google Cloud Pub/Sub event messaging is active.");
+            _logger?.Info("[SqsManager] AWS SQS event messaging is active.");
         }
 
         public void Stop()
         {
             if (!_isRunning) return;
 
-            _logger?.Info("[PubSubManager] Stopping Google Cloud Pub/Sub services...");
+            _logger?.Info("[SqsManager] Stopping AWS SQS services...");
             _cts.Cancel();
             _subscriber?.Stop();
             _isRunning = false;
@@ -80,4 +80,3 @@ namespace CryptoTrading.Infrastructure.PubSub
         }
     }
 }
-

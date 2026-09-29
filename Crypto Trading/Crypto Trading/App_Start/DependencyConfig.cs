@@ -3,7 +3,7 @@ using CryptoTrading.Business.Services;
 using CryptoTrading.Data;
 using CryptoTrading.Data.Repositories;
 using CryptoTrading.Infrastructure.Logging;
-using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Sqs;
 using CryptoTrading.Infrastructure.MarketData;
 using CryptoTrading.Infrastructure.Reports;
 using CryptoTrading.Infrastructure.Security;
@@ -24,26 +24,26 @@ namespace CryptoTrading.Web
         private static readonly Lazy<ITokenService> _tokenService = 
             new Lazy<ITokenService>(() => new JwtTokenService());
 
-        // Google Cloud Pub/Sub Messaging & Event Streaming
-        private static readonly Lazy<PubSubConfig> _pubSubConfig =
-            new Lazy<PubSubConfig>(() => PubSubConfig.FromConfiguration());
+        // AWS SQS Messaging & Event Streaming
+        private static readonly Lazy<SqsConfig> _sqsConfig =
+            new Lazy<SqsConfig>(() => SqsConfig.FromConfiguration());
 
-        private static readonly Lazy<IPubSubPublisher> _pubSubPublisher =
-            new Lazy<IPubSubPublisher>(() => new PubSubPublisher(_pubSubConfig.Value, _logger.Value));
+        private static readonly Lazy<ISqsPublisher> _sqsPublisher =
+            new Lazy<ISqsPublisher>(() => new SqsPublisher(_sqsConfig.Value, _logger.Value));
 
-        private static readonly Lazy<IPubSubSubscriber> _pubSubSubscriber =
-            new Lazy<IPubSubSubscriber>(() => new PubSubSubscriber(_pubSubConfig.Value, _logger.Value));
+        private static readonly Lazy<ISqsSubscriber> _sqsSubscriber =
+            new Lazy<ISqsSubscriber>(() => new SqsSubscriber(_sqsConfig.Value, _logger.Value));
 
         private static readonly Lazy<IOrderExecutionProcessor> _orderExecutionProcessor =
             new Lazy<IOrderExecutionProcessor>(() => new OrderExecutionProcessor(
                 () => _tradingService.Value,
-                _pubSubPublisher.Value,
-                _pubSubConfig.Value,
+                _sqsPublisher.Value,
+                _sqsConfig.Value,
                 _logger.Value));
 
-        private static readonly Lazy<PubSubManager> _pubSubManager =
-            new Lazy<PubSubManager>(() => new PubSubManager(
-                _pubSubConfig.Value, 
+        private static readonly Lazy<SqsManager> _sqsManager =
+            new Lazy<SqsManager>(() => new SqsManager(
+                _sqsConfig.Value, 
                 _logger.Value, 
                 () => _tradingService.Value, 
                 _orderExecutionProcessor.Value));
@@ -79,9 +79,9 @@ namespace CryptoTrading.Web
         private static readonly Lazy<IWithdrawalRepository> _withdrawalRepo = 
             new Lazy<IWithdrawalRepository>(() => new WithdrawalRepository(_dbFactory.Value));
 
-        // Market Data (with Google Cloud Pub/Sub price streaming)
+        // Market Data (with AWS SQS price streaming)
         private static readonly Lazy<ICryptoMarketService> _marketService = 
-            new Lazy<ICryptoMarketService>(() => new CoinGeckoMarketService(_cryptoRepo.Value, _logger.Value, _pubSubPublisher.Value));
+            new Lazy<ICryptoMarketService>(() => new CoinGeckoMarketService(_cryptoRepo.Value, _logger.Value, _sqsPublisher.Value));
 
         // Business Services
         private static readonly Lazy<IAuthService> _authService = 
@@ -125,12 +125,12 @@ namespace CryptoTrading.Web
         public static IWithdrawalRepository WithdrawalRepository => _withdrawalRepo.Value;
         public static ICryptoMarketService CryptoMarketService => _marketService.Value;
 
-        // Google Cloud Pub/Sub Properties
-        public static PubSubConfig PubSubConfig => _pubSubConfig.Value;
-        public static IPubSubPublisher PubSubPublisher => _pubSubPublisher.Value;
-        public static IPubSubSubscriber PubSubSubscriber => _pubSubSubscriber.Value;
+        // AWS SQS Properties
+        public static SqsConfig SqsConfig => _sqsConfig.Value;
+        public static ISqsPublisher SqsPublisher => _sqsPublisher.Value;
+        public static ISqsSubscriber SqsSubscriber => _sqsSubscriber.Value;
         public static IOrderExecutionProcessor OrderExecutionProcessor => _orderExecutionProcessor.Value;
-        public static PubSubManager PubSubManager => _pubSubManager.Value;
+        public static SqsManager SqsManager => _sqsManager.Value;
 
         public static IAuthService AuthService => _authService.Value;
         public static ICryptoService CryptoService => _cryptoService.Value;

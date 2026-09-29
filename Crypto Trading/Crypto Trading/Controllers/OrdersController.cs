@@ -3,7 +3,7 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Web.Http;
 using CryptoTrading.Business.Services;
-using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Sqs;
 using CryptoTrading.Models.Requests;
 using CryptoTrading.Web.Security;
 
@@ -15,17 +15,17 @@ namespace CryptoTrading.Web.Controllers
     {
         private readonly IOrderService _orderService;
         private readonly ITradingService _tradingService;
-        private readonly IPubSubPublisher _pubSubPublisher;
+        private readonly ISqsPublisher _sqsPublisher;
 
-        public OrdersController() : this(DependencyConfig.OrderService, DependencyConfig.TradingService, DependencyConfig.PubSubPublisher)
+        public OrdersController() : this(DependencyConfig.OrderService, DependencyConfig.TradingService, DependencyConfig.SqsPublisher)
         {
         }
 
-        public OrdersController(IOrderService orderService, ITradingService tradingService, IPubSubPublisher pubSubPublisher = null)
+        public OrdersController(IOrderService orderService, ITradingService tradingService, ISqsPublisher sqsPublisher = null)
         {
             _orderService = orderService;
             _tradingService = tradingService;
-            _pubSubPublisher = pubSubPublisher;
+            _sqsPublisher = sqsPublisher;
         }
 
         [HttpGet]
@@ -54,8 +54,8 @@ namespace CryptoTrading.Web.Controllers
             var correlationId = Guid.NewGuid();
             var symbol = (request.Symbol ?? "").Trim().ToUpperInvariant();
 
-            // 1. Publish OrderPlacedEvent to Google Cloud Pub/Sub topic with OrderingKey = Symbol (strict FIFO per coin)
-            if (_pubSubPublisher != null)
+            // 1. Publish OrderPlacedEvent to AWS SQS queue with MessageGroupId = Symbol (strict FIFO per coin)
+            if (_sqsPublisher != null)
             {
                 try
                 {
@@ -70,15 +70,15 @@ namespace CryptoTrading.Web.Controllers
                         Price = request.Price,
                         CreatedAt = DateTime.UtcNow
                     };
-                    await _pubSubPublisher.PublishAsync(PubSubConfig.FromConfiguration().OrdersIncomingTopic, symbol, orderEvent);
+                    await _sqsPublisher.PublishAsync(SqsConfig.FromConfiguration().OrdersIncomingQueueUrl, symbol, orderEvent);
                 }
-                catch (Exception psEx)
+                catch (Exception sqsEx)
                 {
-                    System.Diagnostics.Trace.WriteLine($"[PubSub] Warning publishing order event: {psEx.Message}");
+                    System.Diagnostics.Trace.WriteLine($"[SQS] Warning publishing order event: {sqsEx.Message}");
                 }
             }
 
-            // 2. If client requests asynchronous queuing (< 10ms response for GCP high-scale trading)
+            // 2. If client requests asynchronous queuing (< 10ms response for AWS high-scale trading)
             if (async)
             {
                 return Content(HttpStatusCode.Accepted, new
@@ -89,7 +89,7 @@ namespace CryptoTrading.Web.Controllers
                     symbol = symbol,
                     side = request.Side,
                     quantity = request.Quantity,
-                    message = "Order queued to Google Cloud Pub/Sub stream for matching engine execution."
+                    message = "Order queued to AWS SQS queue for matching engine execution."
                 });
             }
 

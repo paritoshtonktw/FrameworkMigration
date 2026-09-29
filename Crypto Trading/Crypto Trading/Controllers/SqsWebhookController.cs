@@ -6,32 +6,31 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web.Http;
 using CryptoTrading.Infrastructure.Logging;
-using CryptoTrading.Infrastructure.PubSub;
+using CryptoTrading.Infrastructure.Sqs;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace CryptoTrading.Web.Controllers
 {
     /// <summary>
-    /// Google Cloud Pub/Sub Push Subscription receiver.
-    /// Cloud Run instances can scale to zero; Pub/Sub delivers HTTP POST events directly to these endpoints,
-    /// triggering atomic order execution and post-trade notifications without 24/7 consumer polling loops.
+    /// AWS SQS Push Subscription receiver / Webhook endpoint.
+    /// Standard endpoint to accept asynchronous orders dispatched from AWS services (e.g. SQS trigger via Lambda/API Gateway).
     /// </summary>
-    [RoutePrefix("api/pubsub")]
-    public class PubSubWebhookController : BaseApiController
+    [RoutePrefix("api/sqs")]
+    public class SqsWebhookController : BaseApiController
     {
         private readonly IOrderExecutionProcessor _orderProcessor;
-        private readonly PubSubConfig _config;
+        private readonly SqsConfig _config;
         private readonly ILoggerService _logger;
 
-        public PubSubWebhookController()
-            : this(DependencyConfig.OrderExecutionProcessor, DependencyConfig.PubSubConfig, DependencyConfig.Logger)
+        public SqsWebhookController()
+            : this(DependencyConfig.OrderExecutionProcessor, DependencyConfig.SqsConfig, DependencyConfig.Logger)
         {
         }
 
-        public PubSubWebhookController(
+        public SqsWebhookController(
             IOrderExecutionProcessor orderProcessor,
-            PubSubConfig config,
+            SqsConfig config,
             ILoggerService logger)
         {
             _orderProcessor = orderProcessor;
@@ -42,9 +41,9 @@ namespace CryptoTrading.Web.Controllers
         }
 
         /// <summary>
-        /// Native Google Cloud Pub/Sub Push endpoint for incoming trade orders.
-        /// Automatically decodes Base64 message.data from the Pub/Sub push envelope,
-        /// executes the trade atomically, and emits the completion event with OrderingKey=Symbol.
+        /// Native AWS SQS Push webhook for incoming trade orders.
+        /// Automatically extracts the JSON body from SQS records,
+        /// executes the trade atomically, and emits the completion event.
         /// </summary>
         [HttpPost]
         [Route("order-placed")]
@@ -52,12 +51,12 @@ namespace CryptoTrading.Web.Controllers
         {
             if (!ValidatePushSecurity())
             {
-                return ErrorResponse("Unauthorized Pub/Sub push request: invalid secret token.", "UNAUTHORIZED_PUBSUB", HttpStatusCode.Unauthorized);
+                return ErrorResponse("Unauthorized SQS push request: invalid secret token.", "UNAUTHORIZED_SQS", HttpStatusCode.Unauthorized);
             }
 
             if (payload == null)
             {
-                return ErrorResponse("Pub/Sub message payload cannot be empty.", "INVALID_PAYLOAD", HttpStatusCode.BadRequest);
+                return ErrorResponse("SQS message payload cannot be empty.", "INVALID_PAYLOAD", HttpStatusCode.BadRequest);
             }
 
             try
@@ -68,22 +67,21 @@ namespace CryptoTrading.Web.Controllers
                     return ErrorResponse("Invalid OrderPlacedEvent payload structure.", "MALFORMED_EVENT", HttpStatusCode.BadRequest);
                 }
 
-                _logger?.Info($"[PubSub:Webhook] Received OrderPlacedEvent: CorrelationId={order.CorrelationId}, Symbol={order.Symbol}, Side={order.Side}, Quantity={order.Quantity}");
+                _logger?.Info($"[Sqs:Webhook] Received OrderPlacedEvent: CorrelationId={order.CorrelationId}, Symbol={order.Symbol}, Side={order.Side}, Quantity={order.Quantity}");
 
                 var result = await _orderProcessor.ProcessOrderAsync(order);
 
-                // Return 200 OK to acknowledge (ACK) the Pub/Sub message
-                return OkResponse(result, $"Pub/Sub Order {order.CorrelationId} acknowledged with status: {result.Status}");
+                return OkResponse(result, $"SQS Order {order.CorrelationId} acknowledged with status: {result.Status}");
             }
             catch (Exception ex)
             {
-                _logger?.Error($"[PubSub:Webhook] Order execution failed: {ex.Message}", ex);
+                _logger?.Error($"[Sqs:Webhook] Order execution failed: {ex.Message}", ex);
                 return ErrorResponse($"Order execution failed: {ex.Message}", "ORDER_EXECUTION_FAILED", HttpStatusCode.InternalServerError);
             }
         }
 
         /// <summary>
-        /// Native Google Cloud Pub/Sub Push endpoint for executed order notifications and auditing.
+        /// AWS SQS Push webhook for executed order notifications and auditing.
         /// </summary>
         [HttpPost]
         [Route("order-executed")]
@@ -91,12 +89,12 @@ namespace CryptoTrading.Web.Controllers
         {
             if (!ValidatePushSecurity())
             {
-                return ErrorResponse("Unauthorized Pub/Sub push request: invalid secret token.", "UNAUTHORIZED_PUBSUB", HttpStatusCode.Unauthorized);
+                return ErrorResponse("Unauthorized SQS push request: invalid secret token.", "UNAUTHORIZED_SQS", HttpStatusCode.Unauthorized);
             }
 
             if (payload == null)
             {
-                return ErrorResponse("Pub/Sub message payload cannot be empty.", "INVALID_PAYLOAD", HttpStatusCode.BadRequest);
+                return ErrorResponse("SQS message payload cannot be empty.", "INVALID_PAYLOAD", HttpStatusCode.BadRequest);
             }
 
             try
@@ -107,7 +105,7 @@ namespace CryptoTrading.Web.Controllers
                     return ErrorResponse("Invalid OrderExecutedEvent payload.", "MALFORMED_EVENT", HttpStatusCode.BadRequest);
                 }
 
-                _logger?.Info($"[PubSub:Audit] Trade Notification: Order {executed.CorrelationId} ({executed.Symbol} {executed.Side}) -> Status={executed.Status}, TradeId={executed.TradeId}, Total=${executed.TotalAmount}");
+                _logger?.Info($"[Sqs:Audit] Trade Notification: Order {executed.CorrelationId} ({executed.Symbol} {executed.Side}) -> Status={executed.Status}, TradeId={executed.TradeId}, Total=${executed.TotalAmount}");
 
                 return OkResponse(new
                 {
@@ -120,14 +118,14 @@ namespace CryptoTrading.Web.Controllers
             }
             catch (Exception ex)
             {
-                _logger?.Error($"[PubSub:Webhook] Audit notification failed: {ex.Message}", ex);
+                _logger?.Error($"[Sqs:Webhook] Audit notification failed: {ex.Message}", ex);
                 return ErrorResponse($"Audit notification failed: {ex.Message}", "AUDIT_FAILED", HttpStatusCode.InternalServerError);
             }
         }
 
         private bool ValidatePushSecurity()
         {
-            var expectedSecret = _config?.PushEndpointSecret;
+            var expectedSecret = _config?.WebhookSecret;
             if (string.IsNullOrWhiteSpace(expectedSecret))
             {
                 return true; // No secret configured; allow open local dev
@@ -139,7 +137,7 @@ namespace CryptoTrading.Web.Controllers
             }
 
             // Check custom header
-            if (Request.Headers.TryGetValues("X-PubSub-Secret", out var headerValues) &&
+            if (Request.Headers.TryGetValues("X-Sqs-Secret", out var headerValues) &&
                 headerValues.Any(v => string.Equals(v, expectedSecret, StringComparison.Ordinal)))
             {
                 return true;
@@ -157,15 +155,18 @@ namespace CryptoTrading.Web.Controllers
 
         private static OrderPlacedEvent ExtractOrderPlaced(JToken token)
         {
-            if (token is JObject obj && obj["message"] != null && obj["message"]["data"] != null)
+            if (token is JObject obj)
             {
-                // Standard Google Cloud Pub/Sub Push envelope
-                var base64Data = obj["message"]["data"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(base64Data))
+                // Standard AWS SQS Records envelope
+                var records = obj["Records"] as JArray;
+                if (records != null && records.Count > 0)
                 {
-                    var jsonBytes = Convert.FromBase64String(base64Data);
-                    var jsonStr = Encoding.UTF8.GetString(jsonBytes);
-                    return JsonConvert.DeserializeObject<OrderPlacedEvent>(jsonStr);
+                    var firstRecord = records[0];
+                    var bodyStr = firstRecord["body"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(bodyStr))
+                    {
+                        return JsonConvert.DeserializeObject<OrderPlacedEvent>(bodyStr);
+                    }
                 }
             }
 
@@ -174,15 +175,18 @@ namespace CryptoTrading.Web.Controllers
 
         private static OrderExecutedEvent ExtractOrderExecuted(JToken token)
         {
-            if (token is JObject obj && obj["message"] != null && obj["message"]["data"] != null)
+            if (token is JObject obj)
             {
-                // Standard Google Cloud Pub/Sub Push envelope
-                var base64Data = obj["message"]["data"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(base64Data))
+                // Standard AWS SQS Records envelope
+                var records = obj["Records"] as JArray;
+                if (records != null && records.Count > 0)
                 {
-                    var jsonBytes = Convert.FromBase64String(base64Data);
-                    var jsonStr = Encoding.UTF8.GetString(jsonBytes);
-                    return JsonConvert.DeserializeObject<OrderExecutedEvent>(jsonStr);
+                    var firstRecord = records[0];
+                    var bodyStr = firstRecord["body"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(bodyStr))
+                    {
+                        return JsonConvert.DeserializeObject<OrderExecutedEvent>(bodyStr);
+                    }
                 }
             }
 
@@ -190,4 +194,3 @@ namespace CryptoTrading.Web.Controllers
         }
     }
 }
-
