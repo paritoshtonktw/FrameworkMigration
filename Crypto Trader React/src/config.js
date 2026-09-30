@@ -14,7 +14,7 @@ export const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_SECONDS * 1000;
 
 // Backend API Base URL: directly configured via .env
 export const API_BASE_URL = 
-    (typeof process !== 'undefined' && process.env && (process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_BASE_URL)) ||
+    (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL) ||
     'http://localhost:5152/api';
 
 // Backend Label: directly uses REACT_APP_BACKEND_LABEL
