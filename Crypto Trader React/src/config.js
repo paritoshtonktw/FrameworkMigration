@@ -1,55 +1,31 @@
 /**
  * Global Application Configuration
- * All environment-driven settings are declared here with sensible defaults.
- * Update REACT_APP_REFRESH_INTERVAL_SECONDS in .env to change globally.
+ * Controlled directly by environment variables in .env.
  */
 
 // Refresh interval in seconds (default: 20 seconds)
 export const REFRESH_INTERVAL_SECONDS = parseInt(
-    process.env.REACT_APP_REFRESH_INTERVAL_SECONDS || '20',
+    (typeof process !== 'undefined' && process.env && process.env.REACT_APP_REFRESH_INTERVAL_SECONDS) || '20',
     10
 );
 
 // Refresh interval in milliseconds for timers
 export const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_SECONDS * 1000;
 
-// Backend URL defaults
-const LEGACY_URL = 'http://localhost:44341/api';
-const UPLIFTED_URL = 'http://localhost:5152/api';
+// Backend API Base URL: directly configured via .env
+export const API_BASE_URL = 
+    (typeof process !== 'undefined' && process.env && (process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_BASE_URL)) ||
+    'http://localhost:5152/api';
 
-// Detect mode from multiple environment keys
-const getEnvValue = () => {
-    if (typeof process !== 'undefined' && process.env) {
-        return (
-            process.env.REACT_APP_BACKEND ||
-            process.env.REACT_APP_ENV ||
-            process.env.REACT_APP_BACKEND_ENV ||
-            process.env.REACT_APP_ACTIVE_BACKEND ||
-            ''
-        ).toLowerCase();
-    }
-    return '';
-};
+// Backend Label: directly uses REACT_APP_BACKEND_LABEL
+export const BACKEND_LABEL = 
+    (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_LABEL) ||
+    '';
 
-const getQueryValue = () => {
-    if (typeof window !== 'undefined' && window.location) {
-        const urlParams = new URLSearchParams(window.location.search);
-        return (urlParams.get('backend') || urlParams.get('env') || '').toLowerCase();
-    }
-    return '';
-};
+export const BACKEND_LABEL_LONG = BACKEND_LABEL;
 
-const envVal = getEnvValue() || getQueryValue();
-const isLegacy = envVal.includes('legacy') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL && process.env.REACT_APP_API_BASE_URL.includes('44341'));
-
-// Backend API Base URL
-export const API_BASE_URL = isLegacy 
-    ? LEGACY_URL 
-    : ((typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL) || UPLIFTED_URL);
-
-export const IS_LEGACY_BACKEND = isLegacy;
-export const BACKEND_LABEL = IS_LEGACY_BACKEND ? 'LEGACY AS-IS' : 'UPLIFTED CORE';
-export const BACKEND_LABEL_LONG = IS_LEGACY_BACKEND ? 'LEGACY AS-IS PLATFORM' : 'UPLIFTED .NET CORE PLATFORM';
+// Badge styling: uses legacy badge styling if label contains 'legacy', otherwise uplifted style
+export const IS_LEGACY_BACKEND = BACKEND_LABEL.toLowerCase().includes('legacy');
 
 const config = {
     REFRESH_INTERVAL_SECONDS,
@@ -61,4 +37,3 @@ const config = {
 };
 
 export default config;
-
